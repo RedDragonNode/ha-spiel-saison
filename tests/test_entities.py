@@ -259,3 +259,20 @@ async def test_diagnostics_hide_the_key(hass: HomeAssistant) -> None:
     assert data["partners"][0]["name"] == "Frank"
     assert data["places"][0]["name"] == "Bett"
     assert "rtsp://" not in str(data)
+
+
+async def test_the_status_sensor_shows_nickname_and_preferences(hass: HomeAssistant) -> None:
+    add_cameras(hass, "fuchs", "hase")
+    entry = await setup_entry(
+        hass,
+        [make_partner("Frank", 2, nickname="Franky", likes=["l_Seil", "l_Weg"], treats=["t_Feder"])],
+        [make_place("Bett")],
+        likes=["Seil"],
+        treats=["Feder"],
+    )
+
+    attributes = hass.states.get(partner_entity(hass, entry, FRANK, "sensor", "status")).attributes
+
+    assert attributes["nickname"] == "Franky"
+    assert attributes["likes"] == ["Seil"]  # der gelöschte Eintrag „Weg“ fällt weg
+    assert attributes["treats"] == ["Feder"]

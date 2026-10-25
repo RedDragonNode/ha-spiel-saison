@@ -38,6 +38,8 @@ from .const import (
     CONF_END_SECONDS,
     CONF_FILE_PATTERN,
     CONF_LEAD_SECONDS,
+    CONF_LIKES,
+    CONF_NICKNAME,
     CONF_NUMBER,
     CONF_PARTNER,
     CONF_PARTNER_PATTERN,
@@ -47,6 +49,7 @@ from .const import (
     CONF_SEASON_PATTERN,
     CONF_START_OFF,
     CONF_START_ON,
+    CONF_TREATS,
     CTRONICS_DOMAIN,
     DEFAULT_BASE_FOLDER,
     DEFAULT_COVER_POSITION,
@@ -65,8 +68,10 @@ from .const import (
     PHASE_STOPPING,
     POLL_SECONDS,
     STORAGE_VERSION,
+    SUBENTRY_LIKE,
     SUBENTRY_PARTNER,
     SUBENTRY_PLACE,
+    SUBENTRY_TREAT,
 )
 from .recorder_client import RecorderAuthError, RecorderClient, RecorderError
 
@@ -84,6 +89,9 @@ class PartnerCfg:
     subentry_id: str
     name: str
     number: int
+    nickname: str = ""
+    likes: list[str] = field(default_factory=list)  # Subentry-IDs der eigenen Vorlieben
+    treats: list[str] = field(default_factory=list)  # Subentry-IDs der Vorlieben zum Bearbeiten seines Partners
     announce_entity: str = ""
     announce_start: str = ""
     announce_end: str = ""
@@ -146,6 +154,8 @@ class SpielSaisonManager:
         self._unsubs: list[CALLBACK_TYPE] = []
         self.partners: dict[str, PartnerCfg] = {}
         self.places: dict[str, PlaceCfg] = {}
+        self.likes: dict[str, str] = {}  # Subentry-ID -> Name der eigenen Vorlieben
+        self.treats: dict[str, str] = {}  # Subentry-ID -> Name der Vorlieben zum Bearbeiten
         self.states: dict[str, PartnerState] = {}
         self.runs: dict[str, dict[str, Any]] = {}  # laufende Abläufe je Spielpartner
         self.place_ids: dict[str, str] = {}  # gewählter Ort je Spielpartner
@@ -182,14 +192,21 @@ class SpielSaisonManager:
         self._saved_runs = {sid: run for sid, run in (stored.get("runs") or {}).items() if sid in self.partners}
 
     def _read_subentries(self) -> None:
-        self.partners, self.places = {}, {}
+        self.partners, self.places, self.likes, self.treats = {}, {}, {}, {}
         for sid, sub in self.entry.subentries.items():
             d = sub.data
-            if sub.subentry_type == SUBENTRY_PARTNER:
+            if sub.subentry_type == SUBENTRY_LIKE:
+                self.likes[sid] = d[CONF_NAME]
+            elif sub.subentry_type == SUBENTRY_TREAT:
+                self.treats[sid] = d[CONF_NAME]
+            elif sub.subentry_type == SUBENTRY_PARTNER:
                 self.partners[sid] = PartnerCfg(
                     sid,
                     d[CONF_NAME],
                     int(d.get(CONF_NUMBER) or 1),
+                    nickname=(d.get(CONF_NICKNAME) or "").strip(),
+                    likes=list(d.get(CONF_LIKES) or []),
+                    treats=list(d.get(CONF_TREATS) or []),
                     announce_entity=d.get(CONF_ANNOUNCE_ENTITY) or "",
                     announce_start=d.get(CONF_ANNOUNCE_START) or "",
                     announce_end=d.get(CONF_ANNOUNCE_END) or "",
@@ -222,6 +239,14 @@ class SpielSaisonManager:
                 lead_s=int(d.get(CONF_LEAD_SECONDS, DEFAULT_LEAD_SECONDS)),
                 end_s=int(d.get(CONF_END_SECONDS, DEFAULT_END_SECONDS)),
             )
+
+    def liked(self, partner: PartnerCfg) -> list[str]:
+        """Namen der eigenen Vorlieben des Spielpartners (gelöschte Einträge fallen weg)."""
+        return [self.likes[i] for i in partner.likes if i in self.likes]
+
+    def treated(self, partner: PartnerCfg) -> list[str]:
+        """Namen der Vorlieben zum Bearbeiten seines Partners."""
+        return [self.treats[i] for i in partner.treats if i in self.treats]
 
     def places_of(self, sid: str) -> dict[str, PlaceCfg]:
         """Die Orte eines Spielpartners (Subentry-ID -> Ort)."""
@@ -497,9 +522,18 @@ class SpielSaisonManager:
         if target:
             await self._call("homeassistant", service, dict(target))
 
-    async def _announce(self, partner: PartnerCfg, text: str) -> None:
+    async def _announce(self, partner: PartnerCfg, place: PlaceCfg, text: str) -> None:
+        """Ansage über die notify-Entity des Spielpartners. Platzhalter: partner, nickname, nr, saison, ort."""
         if partner.announce_entity and text:
-            await self._call("notify", "send_message", {"entity_id": partner.announce_entity, "message": text})
+            values = {
+                "partner": partner.name,
+                "nickname": partner.nickname or partner.name,
+                "nr": logic.pad(partner.number),
+                "saison": logic.pad(self.states[partner.subentry_id].season),
+                "ort": place.name,
+            }
+            message = logic.render_pattern(text, dt_util.now(), values)
+            await self._call("notify", "send_message", {"entity_id": partner.announce_entity, "message": message})
 
     async def _stage_prepare(self, place: PlaceCfg) -> None:
         await self._turn("turn_on", place.prepare_on)
@@ -518,14 +552,14 @@ class SpielSaisonManager:
                 await self._call(CTRONICS_DOMAIN, "ptz_goto_preset", {"entity_id": eids, "preset": number})
         await self._turn("turn_off", place.start_off)
         await self._turn("turn_on", place.start_on)
-        await self._announce(partner, partner.announce_start)
+        await self._announce(partner, place, partner.announce_start)
 
     async def _stage_end(self, partner: PartnerCfg, place: PlaceCfg, *, wait: bool = True) -> None:
         if wait and place.end_s:
             await asyncio.sleep(place.end_s)
         await self._turn("turn_off", place.end_off)
         await self._turn("turn_on", place.end_on)
-        await self._announce(partner, partner.announce_end)
+        await self._announce(partner, place, partner.announce_end)
 
     async def async_prepare(self, ref: str, place_ref: str | None = None) -> dict[str, Any]:
         """Neue Saison beginnen (einmal pro Tag) und den Ort vorbereiten, ohne die Aufnahme zu starten."""
@@ -709,6 +743,7 @@ class SpielSaisonManager:
             EVENT_STARTED,
             {
                 "partner": p.name,
+                "nickname": p.nickname or p.name,
                 "partner_id": sid,
                 "season": st.season,
                 "recording": st.count_season,
@@ -773,6 +808,7 @@ class SpielSaisonManager:
             EVENT_STOPPED,
             {
                 "partner": p.name,
+                "nickname": p.nickname or p.name,
                 "partner_id": sid,
                 "season": st.season,
                 "recording": st.count_season,

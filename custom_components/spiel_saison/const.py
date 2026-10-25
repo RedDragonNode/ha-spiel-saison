@@ -6,6 +6,8 @@ DOMAIN = "spiel_saison"
 
 SUBENTRY_PARTNER = "partner"
 SUBENTRY_PLACE = "place"
+SUBENTRY_LIKE = "like"  # eigene Vorliebe, aus diesen Einträgen wählt der Spielpartner
+SUBENTRY_TREAT = "treat"  # Vorliebe zum Bearbeiten seines Partners
 
 # --- Verbindung zur App und Ordner-Muster (config_entry.data) ----------------------
 CONF_RECORDER_URL = "recorder_url"
@@ -25,6 +27,9 @@ OLD_CAM_NUMBER_PART = "Cam ID.{cam_nr}"  # bis 0.1.0 stand hier die Nummer der K
 
 # --- Spielpartner (Subentry-Daten) -------------------------------------------------
 CONF_NUMBER = "number"  # Nummer des Spielpartners ("nr" in den Mustern)
+CONF_NICKNAME = "nickname"  # Spitzname, in den Ansagen als Platzhalter nickname benutzbar
+CONF_LIKES = "likes"  # Subentry-IDs der eigenen Vorlieben
+CONF_TREATS = "treats"  # Subentry-IDs der Vorlieben zum Bearbeiten seines Partners
 CONF_ANNOUNCE_ENTITY = "announce_entity"  # notify-Entity für Ansagen
 CONF_ANNOUNCE_START = "announce_start"
 CONF_ANNOUNCE_END = "announce_end"

@@ -166,12 +166,15 @@ async def setup_entry(
     partners: list[dict[str, Any]] | None = None,
     places: list[dict[str, Any]] | None = None,
     *,
+    likes: list[str] | None = None,
+    treats: list[str] | None = None,
     minor_version: int = 3,
     **data: Any,
 ) -> MockConfigEntry:
     """Richtet Spiel Saison ein.
 
-    Subentry-IDs: 'p_<Name>' für Spielpartner, 'o_<Name>' für Orte (bei gleichem Namen 'o_<Name>_<Spielpartner>').
+    Subentry-IDs: 'p_<Name>' für Spielpartner, 'o_<Name>' für Orte (bei gleichem Namen 'o_<Name>_<Spielpartner>'),
+    'l_<Name>' für eigene Vorlieben und 't_<Name>' für Vorlieben zum Bearbeiten.
     """
     place_ids: list[str] = []
     for place in places or []:
@@ -196,6 +199,17 @@ async def setup_entry(
         )
         for sid, place in zip(place_ids, places or [], strict=True)
     ]
+    for kind, prefix, names in (("like", "l", likes), ("treat", "t", treats)):
+        subentries += [
+            ConfigSubentryData(
+                subentry_type=kind,
+                title=name,
+                unique_id=f"{kind}:{name.lower()}",
+                subentry_id=f"{prefix}_{name}",
+                data={"name": name},
+            )
+            for name in names or []
+        ]
     entry = MockConfigEntry(
         domain=DOMAIN,
         title="Spiel Saison",

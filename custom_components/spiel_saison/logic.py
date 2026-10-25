@@ -18,8 +18,9 @@ _TOKENS = (
     ("%ss", "%S"),
 )
 
-# Platzhalter in den Mustern, in geschweiften Klammern: {partner} {nr} {saison} {aufnahme} {cam} {cam_nr} {ort}
-PLACEHOLDERS = ("partner", "nr", "saison", "aufnahme", "cam", "cam_nr", "ort")
+# Platzhalter in Mustern und Ansagen, in geschweiften Klammern:
+# {partner} {nickname} {nr} {saison} {aufnahme} {cam} {cam_nr} {ort}
+PLACEHOLDERS = ("partner", "nickname", "nr", "saison", "aufnahme", "cam", "cam_nr", "ort")
 
 
 def norm(text: str) -> str:

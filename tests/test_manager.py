@@ -494,3 +494,51 @@ async def test_a_renamed_camera_entity_is_followed(hass, entity_registry) -> Non
     data = entry.subentries["o_Bett"].data
     assert data["cams"] == ["camera.fuchs_neu"]
     assert data["cam_presets"] == {"camera.fuchs_neu": 3}
+
+
+async def test_announcements_fill_in_the_placeholders(hass, stream, cams, service_calls) -> None:
+    await setup_entry(
+        hass,
+        [
+            make_partner(
+                "Frank",
+                2,
+                nickname="Franky",
+                announce_entity="notify.echo",
+                announce_start="Hallo {nickname}, {partner} Nummer {nr}, Saison {saison}, {ort}!",
+                announce_end="Tschüss {nickname}",
+            )
+        ],
+        [make_place("Bett")],
+    )
+
+    await _start(hass)
+    await _stop(hass)
+
+    assert [c.data["message"] for c in service_calls if c.domain == "notify"] == [
+        "Hallo Franky, Frank Nummer 02, Saison 01, Bett!",
+        "Tschüss Franky",
+    ]
+
+
+async def test_the_nickname_falls_back_to_the_name(hass, stream, cams, service_calls) -> None:
+    await setup_entry(
+        hass,
+        [make_partner("Frank", 2, announce_entity="notify.echo", announce_start="Hallo {nickname}")],
+        [make_place("Bett")],
+    )
+
+    await _start(hass)
+
+    assert [c.data["message"] for c in service_calls] == ["Hallo Frank"]
+
+
+async def test_events_carry_the_nickname(hass, stream, cams) -> None:
+    await setup_entry(hass, [make_partner("Frank", 2, nickname="Franky")], [make_place("Bett")])
+    started = async_capture_events(hass, EVENT_STARTED)
+    stopped = async_capture_events(hass, EVENT_STOPPED)
+
+    await _start(hass)
+    await _stop(hass)
+
+    assert started[0].data["nickname"] == "Franky" and stopped[0].data["nickname"] == "Franky"

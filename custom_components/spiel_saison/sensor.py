@@ -130,6 +130,9 @@ class PartnerStatusSensor(PartnerEntity, SensorEntity):
             "since": run.get("start") if run.get("phase") == PHASE_RECORDING else None,
             "recording": run.get("no"),
             "cams": run.get("cams") or [],
+            "nickname": self.partner.nickname or None,
+            "likes": self.manager.liked(self.partner),
+            "treats": self.manager.treated(self.partner),
         }
 
 

@@ -53,10 +53,13 @@
       "step": {
         "user": {
           "title": "New play partner",
-          "description": "Every play partner has their own seasons, counters and folder. The cameras belong to the places you add for them afterwards. The number appears in the folder and the file name, for example as 02. The announcement is optional: it goes through a notify entity, for example an Echo, when a recording starts and ends.",
+          "description": "Every play partner has their own seasons, counters and folder. The cameras belong to the places you add for them afterwards. The number appears in the folder and the file name, for example as 02. The nickname is optional. Own preferences and preferences for working on their partner are chosen from the entries you added on the integration page beforehand. The two fields appear only once such entries exist. The announcement is optional: it goes through a notify entity, for example an Echo, when a recording starts and ends. In the texts you can use the placeholders nickname, partner, nr, saison and ort, each in curly braces.",
           "data": {
             "name": "Name",
             "number": "Number",
+            "nickname": "Nickname (placeholder nickname in the announcements)",
+            "likes": "Own preferences",
+            "treats": "Preferences for working on their partner",
             "announce_entity": "Announce via (notify entity, e.g. Alexa)",
             "announce_start": "Announcement on start",
             "announce_end": "Announcement on end"
@@ -64,10 +67,13 @@
         },
         "reconfigure": {
           "title": "Edit play partner",
-          "description": "Change name, number and announcement. Counters and season are kept. Existing recordings stay in their folder, new ones go to the folder with the changed name. The cameras are set at the places.",
+          "description": "Change name, number, nickname, preferences and announcement. Counters and season are kept. Existing recordings stay in their folder, new ones go to the folder with the changed name. The cameras are set at the places. In the announcements you can use the placeholders nickname, partner, nr, saison and ort, each in curly braces.",
           "data": {
             "name": "Name",
             "number": "Number",
+            "nickname": "Nickname (placeholder nickname in the announcements)",
+            "likes": "Own preferences",
+            "treats": "Preferences for working on their partner",
             "announce_entity": "Announce via (notify entity, e.g. Alexa)",
             "announce_start": "Announcement on start",
             "announce_end": "Announcement on end"
@@ -166,6 +172,64 @@
       },
       "abort": {
         "no_partner": "Please add a play partner first. A place always belongs to a play partner.",
+        "reconfigure_successful": "Saved."
+      }
+    },
+    "like": {
+      "initiate_flow": {
+        "user": "Add own preference",
+        "reconfigure": "Edit own preference"
+      },
+      "entry_type": "Own preference",
+      "step": {
+        "user": {
+          "title": "New own preference",
+          "description": "A preference is a name you can pick for a play partner. Add the preferences first, then choose them on the play partner.",
+          "data": {
+            "name": "Name"
+          }
+        },
+        "reconfigure": {
+          "title": "Edit own preference",
+          "description": "Renaming it also renames it for every play partner who chose this preference.",
+          "data": {
+            "name": "Name"
+          }
+        }
+      },
+      "error": {
+        "name_taken": "This preference already exists (or the name is empty)."
+      },
+      "abort": {
+        "reconfigure_successful": "Saved."
+      }
+    },
+    "treat": {
+      "initiate_flow": {
+        "user": "Add preference for working",
+        "reconfigure": "Edit preference for working"
+      },
+      "entry_type": "Preference for working",
+      "step": {
+        "user": {
+          "title": "New preference for working on their partner",
+          "description": "A preference is a name you can pick for a play partner. Add the preferences first, then choose them on the play partner.",
+          "data": {
+            "name": "Name"
+          }
+        },
+        "reconfigure": {
+          "title": "Edit preference for working",
+          "description": "Renaming it also renames it for every play partner who chose this preference.",
+          "data": {
+            "name": "Name"
+          }
+        }
+      },
+      "error": {
+        "name_taken": "This preference already exists (or the name is empty)."
+      },
+      "abort": {
         "reconfigure_successful": "Saved."
       }
     }

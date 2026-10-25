@@ -34,6 +34,8 @@ from .const import (
     CONF_END_SECONDS,
     CONF_FILE_PATTERN,
     CONF_LEAD_SECONDS,
+    CONF_LIKES,
+    CONF_NICKNAME,
     CONF_NUMBER,
     CONF_PARTNER,
     CONF_PARTNER_PATTERN,
@@ -43,6 +45,7 @@ from .const import (
     CONF_SEASON_PATTERN,
     CONF_START_OFF,
     CONF_START_ON,
+    CONF_TREATS,
     DEFAULT_BASE_FOLDER,
     DEFAULT_COVER_POSITION,
     DEFAULT_END_SECONDS,
@@ -52,8 +55,10 @@ from .const import (
     DEFAULT_RECORDER_URL,
     DEFAULT_SEASON_PATTERN,
     DOMAIN,
+    SUBENTRY_LIKE,
     SUBENTRY_PARTNER,
     SUBENTRY_PLACE,
+    SUBENTRY_TREAT,
 )
 from .recorder_client import RecorderAuthError, RecorderClient, RecorderError
 
@@ -163,12 +168,17 @@ class SpielSaisonConfigFlow(ConfigFlow, domain=DOMAIN):
     @classmethod
     @callback
     def async_get_supported_subentry_types(cls, config_entry: ConfigEntry) -> dict[str, type[ConfigSubentryFlow]]:
-        return {SUBENTRY_PARTNER: PartnerSubentryFlow, SUBENTRY_PLACE: PlaceSubentryFlow}
+        return {
+            SUBENTRY_PARTNER: PartnerSubentryFlow,
+            SUBENTRY_PLACE: PlaceSubentryFlow,
+            SUBENTRY_LIKE: LikeSubentryFlow,
+            SUBENTRY_TREAT: TreatSubentryFlow,
+        }
 
 
 # ----------------------------------------------------------------- Spielpartner
 class PartnerSubentryFlow(ConfigSubentryFlow):
-    """Spielpartner anlegen oder bearbeiten: Name, Nummer (für die Muster) und Ansage."""
+    """Spielpartner anlegen oder bearbeiten: Name, Nummer (für die Muster), Spitzname, Vorlieben und Ansage."""
 
     _own: str | None = None
 
@@ -183,10 +193,15 @@ class PartnerSubentryFlow(ConfigSubentryFlow):
         taken = {int(d.get(CONF_NUMBER) or 0) for d in self._others()}
         return next(n for n in range(1, 100) if n not in taken)
 
+    def _catalog(self, kind: str) -> dict[str, str]:
+        """Die angelegten Vorlieben einer Art (Subentry-ID -> Name)."""
+        return {sid: s.data[CONF_NAME] for sid, s in self._get_entry().subentries.items() if s.subentry_type == kind}
+
     async def _step(
         self, step_id: str, user_input: dict[str, Any] | None, current: Mapping[str, Any]
     ) -> SubentryFlowResult:
         errors: dict[str, str] = {}
+        likes, treats = self._catalog(SUBENTRY_LIKE), self._catalog(SUBENTRY_TREAT)
         if user_input is not None:
             name = user_input[CONF_NAME].strip()
             number = int(user_input[CONF_NUMBER])
@@ -199,6 +214,9 @@ class PartnerSubentryFlow(ConfigSubentryFlow):
                 data: dict[str, Any] = {
                     CONF_NAME: name,
                     CONF_NUMBER: number,
+                    CONF_NICKNAME: (user_input.get(CONF_NICKNAME) or "").strip(),
+                    CONF_LIKES: [i for i in user_input.get(CONF_LIKES) or [] if i in likes],
+                    CONF_TREATS: [i for i in user_input.get(CONF_TREATS) or [] if i in treats],
                     CONF_ANNOUNCE_START: (user_input.get(CONF_ANNOUNCE_START) or "").strip(),
                     CONF_ANNOUNCE_END: (user_input.get(CONF_ANNOUNCE_END) or "").strip(),
                 }
@@ -217,18 +235,32 @@ class PartnerSubentryFlow(ConfigSubentryFlow):
                 return self.async_update_and_abort(
                     entry, self._get_reconfigure_subentry(), title=name, unique_id=unique_id, data=data
                 )
-        schema = vol.Schema(
-            {
-                vol.Required(CONF_NAME): _TEXT,
-                vol.Required(CONF_NUMBER): _num(1, 99),
-                vol.Optional(CONF_ANNOUNCE_ENTITY): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="notify")
-                ),
-                vol.Optional(CONF_ANNOUNCE_START): _TEXT,
-                vol.Optional(CONF_ANNOUNCE_END): _TEXT,
-            }
+        fields: dict[Any, Any] = {
+            vol.Required(CONF_NAME): _TEXT,
+            vol.Required(CONF_NUMBER): _num(1, 99),
+            vol.Optional(CONF_NICKNAME): _TEXT,
+        }
+        for key, catalog in ((CONF_LIKES, likes), (CONF_TREATS, treats)):
+            if catalog:  # ohne angelegte Vorlieben gäbe es nichts zu wählen
+                fields[vol.Optional(key)] = selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=[selector.SelectOptionDict(value=sid, label=label) for sid, label in catalog.items()],
+                        multiple=True,
+                        mode=selector.SelectSelectorMode.DROPDOWN,
+                    )
+                )
+        fields[vol.Optional(CONF_ANNOUNCE_ENTITY)] = selector.EntitySelector(
+            selector.EntitySelectorConfig(domain="notify")
         )
-        suggested = user_input or {CONF_NUMBER: self._next_number(), **current}
+        fields[vol.Optional(CONF_ANNOUNCE_START)] = _TEXT
+        fields[vol.Optional(CONF_ANNOUNCE_END)] = _TEXT
+        schema = vol.Schema(fields)
+        suggested = user_input or {
+            CONF_NUMBER: self._next_number(),
+            **current,
+            CONF_LIKES: [i for i in current.get(CONF_LIKES) or [] if i in likes],  # gelöschte Einträge nicht vorwählen
+            CONF_TREATS: [i for i in current.get(CONF_TREATS) or [] if i in treats],
+        }
         return self.async_show_form(
             step_id=step_id,
             data_schema=self.add_suggested_values_to_schema(schema, suggested),
@@ -243,6 +275,69 @@ class PartnerSubentryFlow(ConfigSubentryFlow):
         sub = self._get_reconfigure_subentry()
         self._own = sub.subentry_id
         return await self._step("reconfigure", user_input, dict(sub.data))
+
+
+# ------------------------------------------------------------------- Vorlieben
+class _PreferenceSubentryFlow(ConfigSubentryFlow):
+    """Eine Vorliebe anlegen oder umbenennen. Die Spielpartner wählen später aus diesen Einträgen."""
+
+    _kind = ""
+    _own: str | None = None
+
+    def _taken(self) -> set[str]:
+        return {
+            logic.norm(s.data[CONF_NAME])
+            for sid, s in self._get_entry().subentries.items()
+            if s.subentry_type == self._kind and sid != self._own
+        }
+
+    async def _step(
+        self, step_id: str, user_input: dict[str, Any] | None, current: Mapping[str, Any]
+    ) -> SubentryFlowResult:
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            name = user_input[CONF_NAME].strip()
+            if not name or logic.norm(name) in self._taken():
+                errors[CONF_NAME] = "name_taken"
+            else:
+                unique_id = f"{self._kind}:{logic.norm(name)}"  # die IDs aller Untereinträge müssen verschieden sein
+                if self._own is None:
+                    return self.async_create_entry(title=name, data={CONF_NAME: name}, unique_id=unique_id)
+                return self.async_update_and_abort(
+                    self._get_entry(),
+                    self._get_reconfigure_subentry(),
+                    title=name,
+                    unique_id=unique_id,
+                    data={CONF_NAME: name},
+                )
+        return self.async_show_form(
+            step_id=step_id,
+            data_schema=self.add_suggested_values_to_schema(
+                vol.Schema({vol.Required(CONF_NAME): _TEXT}), user_input or current
+            ),
+            errors=errors,
+        )
+
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
+        self._own = None
+        return await self._step("user", user_input, {})
+
+    async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
+        sub = self._get_reconfigure_subentry()
+        self._own = sub.subentry_id
+        return await self._step("reconfigure", user_input, dict(sub.data))
+
+
+class LikeSubentryFlow(_PreferenceSubentryFlow):
+    """Eigene Vorliebe."""
+
+    _kind = SUBENTRY_LIKE
+
+
+class TreatSubentryFlow(_PreferenceSubentryFlow):
+    """Vorliebe zum Bearbeiten seines Partners."""
+
+    _kind = SUBENTRY_TREAT
 
 
 # ------------------------------------------------------------------------ Orte
