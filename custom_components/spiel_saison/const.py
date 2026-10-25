@@ -44,12 +44,12 @@ CONF_PARTNER = "partner"  # Subentry-ID des Spielpartners, zu dem der Ort gehör
 CONF_CAMS = "cams"  # Kamera-Entities (camera.*) des Ortes
 CONF_CAM_PRESETS = "cam_presets"  # Kamera-Entity -> PTZ-Position der Ctronics-Kamera (fehlt = nicht bewegen)
 CONF_PTZ_PRESET = "ptz_preset"  # bis 0.1.x: eine PTZ-Position für alle Kameras (nur noch für die Umstellung)
-# Rollo oder Winde des Ortes: ersetzt für diesen Ort die Einstellung unter „Konfigurieren“
-CONF_COVER = "cover"  # bei „Saison vorbereiten“
+# Winden-Position des Ortes: ersetzt bei „Saison vorbereiten“ die Position von „Konfigurieren“, wenn er gewählt ist
 CONF_COVER_POSITION = "cover_position"
-CONF_FINISH_COVER = "finish_cover"  # bei „Saison beenden“
+# bis 0.6.x standen die Einstellungen der beiden Tasten beim Ort (nur noch für die Umstellung auf 1.5)
+CONF_COVER = "cover"
+CONF_FINISH_COVER = "finish_cover"
 CONF_FINISH_COVER_POSITION = "finish_cover_position"
-# bis 0.6.x standen auch die Ziele der beiden Tasten beim Ort (nur noch für die Umstellung auf 1.5)
 CONF_PREPARE_ON = "prepare_on"
 CONF_FINISH_OFF = "finish_off"
 CONF_FINISH_ON = "finish_on"

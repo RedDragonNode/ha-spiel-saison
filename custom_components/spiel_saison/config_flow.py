@@ -28,14 +28,11 @@ from .const import (
     CONF_BASE_FOLDER,
     CONF_CAM_PRESETS,
     CONF_CAMS,
-    CONF_COVER,
     CONF_COVER_POSITION,
     CONF_END_OFF,
     CONF_END_ON,
     CONF_END_SECONDS,
     CONF_FILE_PATTERN,
-    CONF_FINISH_COVER,
-    CONF_FINISH_COVER_POSITION,
     CONF_LEAD_SECONDS,
     CONF_LIKE_CATALOG,
     CONF_LIKES,
@@ -311,7 +308,7 @@ class PartnerSubentryFlow(ConfigSubentryFlow):
 
 # ------------------------------------------------------------------------ Orte
 class PlaceSubentryFlow(ConfigSubentryFlow):
-    """Ort anlegen oder bearbeiten: Grundlagen, PTZ-Position je Kamera, Rollo und Winde, Beginn, Ende."""
+    """Ort anlegen oder bearbeiten: Grundlagen, PTZ-Position je Kamera, Position der Winde, Beginn, Ende."""
 
     _basics: dict[str, Any]
     _cover: dict[str, Any]
@@ -426,36 +423,17 @@ class PlaceSubentryFlow(ConfigSubentryFlow):
             last_step=False,  # Schaltfläche: Weiter
         )
 
-    # -------------------------------------------------- Schritt 3: Rollo und Winde
+    # ------------------------------------------------- Schritt 3: Position der Winde
     async def _step_cover(self, user_input: dict[str, Any] | None) -> SubentryFlowResult:
-        """Optional: Rollo oder Winde dieses Ortes für „Saison vorbereiten“ und „Saison beenden“."""
+        """Optional: die Position, auf die die Winde bei „Saison vorbereiten“ fährt, wenn dieser Ort gewählt ist."""
         if user_input is not None:
-            self._cover = {}
-            for key, position_key, default in (
-                (CONF_COVER, CONF_COVER_POSITION, DEFAULT_COVER_POSITION),
-                (CONF_FINISH_COVER, CONF_FINISH_COVER_POSITION, DEFAULT_FINISH_COVER_POSITION),
-            ):
-                if user_input.get(key):
-                    self._cover[key] = user_input[key]
-                    self._cover[position_key] = int(user_input.get(position_key, default))
+            position = user_input.get(CONF_COVER_POSITION)
+            self._cover = {} if position is None else {CONF_COVER_POSITION: int(position)}
             return await self._step_begin(None)
-        cover = selector.EntitySelector(selector.EntitySelectorConfig(domain="cover"))
-        schema = vol.Schema(
-            {
-                vol.Optional(CONF_COVER): cover,
-                vol.Optional(CONF_COVER_POSITION): _num(0, 100, "%"),
-                vol.Optional(CONF_FINISH_COVER): cover,
-                vol.Optional(CONF_FINISH_COVER_POSITION): _num(0, 100, "%"),
-            }
-        )
-        suggested = {
-            CONF_COVER_POSITION: DEFAULT_COVER_POSITION,
-            CONF_FINISH_COVER_POSITION: DEFAULT_FINISH_COVER_POSITION,
-            **self._current,
-        }
+        schema = vol.Schema({vol.Optional(CONF_COVER_POSITION): _num(0, 100, "%")})
         return self.async_show_form(
             step_id=f"{self._prefix}_cover",
-            data_schema=self.add_suggested_values_to_schema(schema, suggested),
+            data_schema=self.add_suggested_values_to_schema(schema, self._current),
             last_step=False,  # Schaltfläche: Weiter
         )
 

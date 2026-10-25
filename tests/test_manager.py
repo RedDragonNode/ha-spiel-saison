@@ -8,6 +8,7 @@ from datetime import timedelta
 import pytest
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import async_capture_events, async_fire_time_changed
@@ -96,6 +97,10 @@ def _season_folder(partner: str, number: int, season: int) -> list[str]:
 
 def _days_ago(days: int) -> str:
     return (dt_util.now().date() - timedelta(days=days)).isoformat()
+
+
+def _entry_id(hass: HomeAssistant) -> str:
+    return hass.config_entries.async_entries(DOMAIN)[0].entry_id
 
 
 def _runtime(entry):
@@ -455,35 +460,33 @@ async def test_the_cover_positions_default_to_50_when_preparing_and_0_when_endin
     assert (runtime.prepare_step.cover_position, runtime.finish_step.cover_position) == (50, 0)
 
 
-async def test_prepare_uses_the_cover_of_the_place_instead_of_the_one_under_configure(
-    hass, stream, cams, service_calls
-) -> None:
+async def test_prepare_moves_the_winch_to_the_position_of_the_chosen_place(hass, stream, cams, service_calls) -> None:
     options = {"prepare": {"cover": "cover.winde", "cover_position": 50}}
-    await _setup(
+    entry = await _setup(
         hass,
-        [make_place("Schaukel", cover="cover.schaukel", cover_position=30), make_place("Bett")],
+        [make_place("Schaukel", cover_position=30), make_place("Bett", cover_position=0), make_place("Dach")],
         options=options,
     )
-
-    await hass.services.async_call(DOMAIN, "prepare", {"partner": "Frank", "place": "Schaukel"}, blocking=True)
-    await hass.services.async_call(DOMAIN, "prepare", {"partner": "Frank", "place": "Bett"}, blocking=True)
+    for place in ("Schaukel", "Bett", "Dach"):
+        await hass.services.async_call(DOMAIN, "prepare", {"partner": "Frank", "place": place}, blocking=True)
 
     assert _summary(service_calls) == [
-        ("cover", "set_cover_position", {"entity_id": "cover.schaukel", "position": 30}),
-        ("cover", "set_cover_position", {"entity_id": "cover.winde", "position": 50}),  # Bett hat keine eigene
+        ("cover", "set_cover_position", {"entity_id": "cover.winde", "position": 30}),
+        ("cover", "set_cover_position", {"entity_id": "cover.winde", "position": 0}),  # 0 ist eine Position
+        ("cover", "set_cover_position", {"entity_id": "cover.winde", "position": 50}),  # Dach hat keine eigene
     ]
+    assert _runtime(entry).places["o_Dach"].cover_position is None
 
 
-async def test_end_season_uses_the_end_cover_of_the_place(hass, cams, service_calls) -> None:
-    options = {"finish": {"cover": "cover.winde"}}
-    await _setup(
-        hass, [make_place("Schaukel", finish_cover="cover.schaukel", finish_cover_position=10)], options=options
-    )
+async def test_prepare_uses_the_position_of_the_place_that_is_selected(hass, stream, cams, service_calls) -> None:
+    options = {"prepare": {"cover": "cover.winde"}}
+    await _setup(hass, [make_place("Schaukel"), make_place("Bett", cover_position=10)], options=options)
+    select = er.async_get(hass).async_get_entity_id("select", DOMAIN, f"{_entry_id(hass)}_{FRANK}_place")
+    await hass.services.async_call("select", "select_option", {"entity_id": select, "option": "Bett"}, blocking=True)
 
-    result = await _end_season(hass)
+    await _prepare(hass)
 
-    assert result["place"] == "Schaukel"
-    assert _summary(service_calls) == [("cover", "set_cover_position", {"entity_id": "cover.schaukel", "position": 10})]
+    assert _summary(service_calls) == [("cover", "set_cover_position", {"entity_id": "cover.winde", "position": 10})]
 
 
 async def test_end_season_moves_the_cover_first_and_switches_the_winch_off_when_the_end_switch_is_on(
@@ -572,7 +575,7 @@ async def test_end_season_runs_the_settings_of_the_end_page(hass, cams, service_
     result = await _end_season(hass)
     await hass.async_block_till_done()
 
-    assert result == {"partner": "Frank", "place": "Spielzimmer", "season": 1, "recordings": 3, "seconds": 200}
+    assert result == {"partner": "Frank", "season": 1, "recordings": 3, "seconds": 200}
     assert _summary(service_calls) == [
         ("cover", "set_cover_position", {"entity_id": "cover.rollo", "position": 100}),  # beim Beenden zuerst
         ("homeassistant", "turn_off", {"entity_id": ["switch.winde"]}),
@@ -599,7 +602,7 @@ async def test_end_season_works_without_a_place(hass, cams, service_calls) -> No
 
     result = await _end_season(hass)
 
-    assert (result["partner"], result["place"]) == ("Frank", "")
+    assert result["partner"] == "Frank"
     assert _summary(service_calls) == [("homeassistant", "turn_off", BED)]
 
 

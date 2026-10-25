@@ -31,14 +31,11 @@ from .const import (
     CONF_BASE_FOLDER,
     CONF_CAM_PRESETS,
     CONF_CAMS,
-    CONF_COVER,
     CONF_COVER_POSITION,
     CONF_END_OFF,
     CONF_END_ON,
     CONF_END_SECONDS,
     CONF_FILE_PATTERN,
-    CONF_FINISH_COVER,
-    CONF_FINISH_COVER_POSITION,
     CONF_LEAD_SECONDS,
     CONF_LIKES,
     CONF_NICKNAME,
@@ -127,11 +124,7 @@ class PlaceCfg:
     start_on: dict[str, Any] = field(default_factory=dict)
     end_off: dict[str, Any] = field(default_factory=dict)
     end_on: dict[str, Any] = field(default_factory=dict)
-    # Rollo oder Winde dieses Ortes bei „Saison vorbereiten“ und „Saison beenden“, sie ersetzen die von „Konfigurieren“
-    cover: str = ""
-    cover_position: int = DEFAULT_COVER_POSITION
-    finish_cover: str = ""
-    finish_cover_position: int = DEFAULT_FINISH_COVER_POSITION
+    cover_position: int | None = None  # Position der Winde bei „Saison vorbereiten“, ersetzt die von „Konfigurieren“
     lead_s: int = DEFAULT_LEAD_SECONDS
     end_s: int = DEFAULT_END_SECONDS
 
@@ -286,10 +279,7 @@ class SpielSaisonManager:
                 start_on=_target(d.get(CONF_START_ON)),
                 end_off=_target(d.get(CONF_END_OFF)),
                 end_on=_target(d.get(CONF_END_ON)),
-                cover=d.get(CONF_COVER) or "",
-                cover_position=int(d.get(CONF_COVER_POSITION, DEFAULT_COVER_POSITION)),
-                finish_cover=d.get(CONF_FINISH_COVER) or "",
-                finish_cover_position=int(d.get(CONF_FINISH_COVER_POSITION, DEFAULT_FINISH_COVER_POSITION)),
+                cover_position=None if d.get(CONF_COVER_POSITION) is None else int(d[CONF_COVER_POSITION]),
                 lead_s=int(d.get(CONF_LEAD_SECONDS, DEFAULT_LEAD_SECONDS)),
                 end_s=int(d.get(CONF_END_SECONDS, DEFAULT_END_SECONDS)),
             )
@@ -601,14 +591,11 @@ class SpielSaisonManager:
             await self._call("notify", "send_message", {"entity_id": partner.announce_entity, "message": message})
 
     @staticmethod
-    def _with_place_cover(step: SeasonStep, place: PlaceCfg | None, *, finish: bool) -> SeasonStep:
-        """Hat der Ort ein eigenes Rollo oder eine eigene Winde, gilt sie statt der unter Konfigurieren."""
-        cover = (place.finish_cover if finish else place.cover) if place else ""
-        if not cover or place is None:
+    def _with_place_position(step: SeasonStep, place: PlaceCfg | None) -> SeasonStep:
+        """Hat der gewählte Ort eine eigene Position, fährt die Winde von „Saison vorbereiten“ dorthin."""
+        if place is None or place.cover_position is None:
             return step
-        return replace(
-            step, cover=cover, cover_position=place.finish_cover_position if finish else place.cover_position
-        )
+        return replace(step, cover_position=place.cover_position)
 
     async def _move_cover(self, step: SeasonStep) -> None:
         if step.cover:
@@ -691,15 +678,15 @@ class SpielSaisonManager:
     async def async_prepare(self, ref: str, place_ref: str | None = None) -> dict[str, Any]:
         """Neue Saison beginnen (einmal pro Tag), ihren Ordner anlegen und „Saison vorbereiten“ ausführen.
 
-        Der Ort (der angegebene, sonst der gewählte) füllt nur den Platzhalter `ort` der Ordner-Muster.
-        Ein Spielpartner ohne Ort kann die Saison trotzdem vorbereiten.
+        Der Ort (der angegebene, sonst der gewählte) füllt den Platzhalter `ort` der Ordner-Muster, und seine Position
+        ersetzt die der Winde. Ein Spielpartner ohne Ort kann die Saison trotzdem vorbereiten.
         """
         p = self.partner(ref)
         place = self.place(p.subentry_id, place_ref)
         new_season = self.phase(p.subentry_id) == PHASE_IDLE and await self._begin_season(p)
         folder = self._season_folder(p, place, dt_util.now())
         created = await self._ensure_folder(p, folder)
-        await self._stage_season(p, self._with_place_cover(self.prepare_step, place, finish=False))
+        await self._stage_season(p, self._with_place_position(self.prepare_step, place))
         if created is not None:  # sonst bleibt die Meldung zum Saison-Ordner stehen
             self._set_message(f"{p.name}: prepared")
         self.notify()
@@ -712,13 +699,9 @@ class SpielSaisonManager:
             "folder_created": created,
         }
 
-    async def async_end_season(self, ref: str, place_ref: str | None = None) -> dict[str, Any]:
-        """Die Saison des Spielpartners beenden: „Saison beenden“ ausführen, nur ohne laufende Aufnahme.
-
-        Nur das Rollo oder die Winde kann der Ort (der angegebene, sonst der gewählte) ersetzen. Ohne Ort geht es auch.
-        """
+    async def async_end_season(self, ref: str) -> dict[str, Any]:
+        """Die Saison des Spielpartners beenden: „Saison beenden“ ausführen, nur ohne laufende Aufnahme."""
         p = self.partner(ref)
-        place = self.place(p.subentry_id, place_ref)
         if self.phase(p.subentry_id) != PHASE_IDLE:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
@@ -726,10 +709,9 @@ class SpielSaisonManager:
                 translation_placeholders={"partner": p.name},
             )
         st = self.states[p.subentry_id]
-        await self._stage_season(p, self._with_place_cover(self.finish_step, place, finish=True), cover_first=True)
+        await self._stage_season(p, self.finish_step, cover_first=True)
         result = {
             "partner": p.name,
-            "place": place.name if place else "",
             "season": st.season,
             "recordings": st.count_season,
             "seconds": round(st.seconds_season),

@@ -97,13 +97,13 @@
       "step": {
         "user": {
           "title": "New place",
-          "description": "A place is where a play partner plays, for example bed or swing. It brings the cameras that record there. On start the integration moves the Ctronics cameras to their PTZ position, switches lights and devices and waits for the lead time before the recording begins. On end it waits for the pause and puts everything back. The next step lets you choose the PTZ position for every Ctronics camera, then optionally the cover or winch of the place, then what is switched at the beginning and at the end. The other settings of “Prepare season” and “End season” are under “Configure” of the integration.",
+          "description": "A place is where a play partner plays, for example bed or swing. It brings the cameras that record there. On start the integration moves the Ctronics cameras to their PTZ position, switches lights and devices and waits for the lead time before the recording begins. On end it waits for the pause and puts everything back. The next step lets you choose the PTZ position for every Ctronics camera, then optionally the position of the winch, then what is switched for “Start recording” and “End recording”. The other settings of “Prepare season” and “End season” are under “Configure” of the integration.",
           "data": {
             "name": "Name",
             "partner": "Play partner",
             "cams": "Cameras",
-            "lead_seconds": "Lead time between start and recording",
-            "end_seconds": "Pause between end of recording and end step"
+            "lead_seconds": "Lead time between “Start recording” and the recording",
+            "end_seconds": "Pause between the end of the recording and “End recording”"
           }
         },
         "user_ptz": {
@@ -111,41 +111,38 @@
           "description": "For each Ctronics camera of this place you choose the stored position it moves to on start. The names come from the options of the Ctronics 4K Cam integration. Without names the numbers 1 to 64 are offered. “Do not move” leaves the camera where it is. Other cameras are not moved and do not appear here."
         },
         "user_cover": {
-          "title": "Cover and winch",
-          "description": "Optional. If a cover or winch is chosen here, it moves to the position at this place for “Prepare season” or “End season” instead of the one under “Configure” of the integration. If you leave a field empty, the setting under “Configure” applies.",
+          "title": "Position of the winch",
+          "description": "Optional. You choose the winch that moves for “Prepare season” under “Configure” of the integration. Here you give the position (0 to 100 percent) it moves to for this place when the place is chosen and “Prepare season” runs. If you leave the field empty, the position under “Configure” applies.",
           "data": {
-            "cover": "Move when preparing the season (cover, winch)",
-            "cover_position": "Position when preparing the season (0 to 100)",
-            "finish_cover": "Move when ending the season (cover, winch)",
-            "finish_cover_position": "Position when ending the season (0 to 100)"
+            "cover_position": "Position of the winch when preparing the season (0 to 100)"
           }
         },
         "user_begin": {
-          "title": "Beginning",
-          "description": "Applies when a recording starts. Everything is optional. You can choose entities, devices, areas or labels, also scenes and scripts. On start the targets under “Turn off” are turned off first, then the ones under “Turn on” are turned on.",
+          "title": "Start recording",
+          "description": "Applies when a recording starts. Everything is optional. You can choose entities, devices, areas or labels, also scenes and scripts. For “Start recording” the targets under “Turn off” are turned off first, then the ones under “Turn on” are turned on.",
           "data": {
-            "start_off": "Turn off at the beginning",
-            "start_on": "Turn on at the beginning"
+            "start_off": "Turn off for “Start recording”",
+            "start_on": "Turn on for “Start recording”"
           }
         },
         "user_end": {
-          "title": "End",
+          "title": "End recording",
           "description": "Applies when a recording ends. Everything is optional. After the pause the targets under “Turn off” are turned off first, then the ones under “Turn on” are turned on. Only the “Save place” button saves the place.",
           "data": {
-            "end_off": "Turn off at the end",
-            "end_on": "Turn on at the end"
+            "end_off": "Turn off for “End recording”",
+            "end_on": "Turn on for “End recording”"
           },
           "submit": "Save place"
         },
         "reconfigure": {
           "title": "Edit place",
-          "description": "Change the settings of the place. The next step holds the PTZ positions of the cameras, then the cover or winch of the place, then the targets that are switched at the beginning and at the end.",
+          "description": "Change the settings of the place. The next step holds the PTZ positions of the cameras, then the position of the winch, then the targets that are switched for “Start recording” and “End recording”.",
           "data": {
             "name": "Name",
             "partner": "Play partner",
             "cams": "Cameras",
-            "lead_seconds": "Lead time between start and recording",
-            "end_seconds": "Pause between end of recording and end step"
+            "lead_seconds": "Lead time between “Start recording” and the recording",
+            "end_seconds": "Pause between the end of the recording and “End recording”"
           }
         },
         "reconfigure_ptz": {
@@ -153,29 +150,26 @@
           "description": "For each Ctronics camera of this place you choose the stored position it moves to on start. The names come from the options of the Ctronics 4K Cam integration. Without names the numbers 1 to 64 are offered. “Do not move” leaves the camera where it is. Other cameras are not moved and do not appear here."
         },
         "reconfigure_cover": {
-          "title": "Cover and winch",
-          "description": "Optional. If a cover or winch is chosen here, it moves to the position at this place for “Prepare season” or “End season” instead of the one under “Configure” of the integration. If you leave a field empty, the setting under “Configure” applies.",
+          "title": "Position of the winch",
+          "description": "Optional. You choose the winch that moves for “Prepare season” under “Configure” of the integration. Here you give the position (0 to 100 percent) it moves to for this place when the place is chosen and “Prepare season” runs. If you leave the field empty, the position under “Configure” applies.",
           "data": {
-            "cover": "Move when preparing the season (cover, winch)",
-            "cover_position": "Position when preparing the season (0 to 100)",
-            "finish_cover": "Move when ending the season (cover, winch)",
-            "finish_cover_position": "Position when ending the season (0 to 100)"
+            "cover_position": "Position of the winch when preparing the season (0 to 100)"
           }
         },
         "reconfigure_begin": {
-          "title": "Beginning",
-          "description": "Applies when a recording starts. Everything is optional. You can choose entities, devices, areas or labels, also scenes and scripts. On start the targets under “Turn off” are turned off first, then the ones under “Turn on” are turned on.",
+          "title": "Start recording",
+          "description": "Applies when a recording starts. Everything is optional. You can choose entities, devices, areas or labels, also scenes and scripts. For “Start recording” the targets under “Turn off” are turned off first, then the ones under “Turn on” are turned on.",
           "data": {
-            "start_off": "Turn off at the beginning",
-            "start_on": "Turn on at the beginning"
+            "start_off": "Turn off for “Start recording”",
+            "start_on": "Turn on for “Start recording”"
           }
         },
         "reconfigure_end": {
-          "title": "End",
+          "title": "End recording",
           "description": "Applies when a recording ends. Everything is optional. After the pause the targets under “Turn off” are turned off first, then the ones under “Turn on” are turned on. Only the “Save place” button saves the changes.",
           "data": {
-            "end_off": "Turn off at the end",
-            "end_on": "Turn on at the end"
+            "end_off": "Turn off for “End recording”",
+            "end_on": "Turn on for “End recording”"
           },
           "submit": "Save place"
         }
@@ -194,7 +188,7 @@
     "step": {
       "init": {
         "title": "Prepare season",
-        "description": "Applies only to the “Prepare season” button and the service of the same name, the same for all play partners and places, not to the recording. Everything is optional. You can choose entities, devices, areas or labels, also scenes and scripts. The button turns off the targets under “Turn off” first, then turns on the ones under “Turn on”, then turns on the lights and finally moves the cover, winch or similar to the position. A cover or winch chosen at the place replaces the one chosen here. If you choose lights, a page for their colour and brightness follows.",
+        "description": "Applies only to the “Prepare season” button and the service of the same name, the same for all play partners and places, not to the recording. Everything is optional. You can choose entities, devices, areas or labels, also scenes and scripts. The button turns off the targets under “Turn off” first, then turns on the ones under “Turn on”, then turns on the lights and finally moves the cover, winch or similar to the position. You can change the position at each place, it replaces the position here when that place is chosen. If you choose lights, a page for their colour and brightness follows.",
         "data": {
           "off": "Turn off when preparing",
           "on": "Turn on when preparing",
@@ -209,7 +203,7 @@
       },
       "finish": {
         "title": "End season",
-        "description": "Applies only to the “End season” button and the service of the same name, the same for all play partners and places, not to the recording. Everything is optional. You can choose entities, devices, areas or labels, also scenes and scripts. Order: the cover or winch moves first (it still needs power for that), then the targets under “Turn off” are turned off, the ones under “Turn on” are turned on and the lights are turned on. Finally the button waits for the end switch and only then turns off the targets under “Turn off once the end switch is on”, for example the winch. If the end switch does not come on in time, they stay on and the button reports an error. A cover or winch chosen at the place replaces the one chosen here. If you choose lights, a page for their colour and brightness follows. Everything is saved when you submit the last page.",
+        "description": "Applies only to the “End season” button and the service of the same name, the same for all play partners and places, not to the recording. Everything is optional. You can choose entities, devices, areas or labels, also scenes and scripts. Order: the cover or winch moves first (it still needs power for that), then the targets under “Turn off” are turned off, the ones under “Turn on” are turned on and the lights are turned on. Finally the button waits for the end switch and only then turns off the targets under “Turn off once the end switch is on”, for example the winch. If the end switch does not come on in time, they stay on and the button reports an error. If you choose lights, a page for their colour and brightness follows. Everything is saved when you submit the last page.",
         "data": {
           "off": "Turn off when ending the season",
           "on": "Turn on when ending the season",
@@ -358,7 +352,7 @@
         },
         "place": {
           "name": "Place",
-          "description": "Name of a place of this play partner. Its cover or winch replaces the setting under “Configure”, and it fills the placeholder “ort” of the folder patterns. Without it the place chosen on the play partner's device is used."
+          "description": "Name of a place of this play partner. Its winch position replaces the one under “Configure”, and it fills the placeholder “ort” of the folder patterns. Without it the place chosen on the play partner's device is used."
         }
       }
     },
@@ -379,10 +373,6 @@
         "partner": {
           "name": "Play partner",
           "description": "Name of the play partner."
-        },
-        "place": {
-          "name": "Place",
-          "description": "Name of a place of this play partner. Its cover or winch replaces the setting under “Configure”. Without it the place chosen on the play partner's device is used."
         }
       }
     }

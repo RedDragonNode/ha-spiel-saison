@@ -99,7 +99,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         return await _manager(hass).async_new_season(call.data[ATTR_PARTNER])
 
     async def end_season(call: ServiceCall) -> dict:
-        return await _manager(hass).async_end_season(call.data[ATTR_PARTNER], call.data.get(ATTR_PLACE))
+        return await _manager(hass).async_end_season(call.data[ATTR_PARTNER])
 
     with_place = vol.Schema({vol.Required(ATTR_PARTNER): cv.string, vol.Optional(ATTR_PLACE): cv.string})
     partner_only = vol.Schema({vol.Required(ATTR_PARTNER): cv.string})
@@ -108,7 +108,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         (SERVICE_STOP, stop, partner_only),
         (SERVICE_PREPARE, prepare, with_place),
         (SERVICE_NEW_SEASON, new_season, partner_only),
-        (SERVICE_END_SEASON, end_season, with_place),
+        (SERVICE_END_SEASON, end_season, partner_only),
     ):
         hass.services.async_register(DOMAIN, name, handler, schema, supports_response=SupportsResponse.OPTIONAL)
     return True
