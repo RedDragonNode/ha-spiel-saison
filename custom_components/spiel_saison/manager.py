@@ -50,6 +50,7 @@ from .const import (
     CONF_START_OFF,
     CONF_START_ON,
     CONF_TREATS,
+    COUNTED_KINDS,
     CTRONICS_DOMAIN,
     DEFAULT_BASE_FOLDER,
     DEFAULT_COVER_POSITION,
@@ -181,7 +182,7 @@ class SpielSaisonManager:
             raw = (stored.get("partners") or {}).get(sid) or {}
             state = PartnerState(**{k: v for k, v in raw.items() if k in known})
             state.season_start = state.season_start or today
-            keys = {key for _kind, _name, key in self.preferences(self.partners[sid])}
+            keys = {key for kind, _name, key in self.preferences(self.partners[sid]) if kind in COUNTED_KINDS}
             state.pref_on = [key for key in state.pref_on if key in keys]
             self.states[sid] = state
         chosen = stored.get("places") or {}

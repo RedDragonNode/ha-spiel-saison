@@ -10,6 +10,7 @@ SUBENTRY_LIKE = "like"  # nur 0.3.x: Vorlieben waren eigene Einträge (siehe Ums
 SUBENTRY_TREAT = "treat"  # nur 0.3.x
 KIND_LIKE = "like"  # eigene Vorliebe
 KIND_TREAT = "treat"  # Vorliebe zum Bearbeiten seines Partners
+COUNTED_KINDS = (KIND_TREAT,)  # nur diese Vorlieben haben Schalter „dabei“ und Zähler
 
 # --- Verbindung zur App und Ordner-Muster (config_entry.data) ----------------------
 CONF_RECORDER_URL = "recorder_url"

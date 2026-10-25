@@ -12,7 +12,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import dt as dt_util
 
 from . import SpielSaisonConfigEntry
-from .const import KIND_LIKE, KIND_TREAT, PHASE_IDLE, PHASE_RECORDING, PHASE_STARTING, PHASE_STOPPING
+from .const import COUNTED_KINDS, KIND_LIKE, KIND_TREAT, PHASE_IDLE, PHASE_RECORDING, PHASE_STARTING, PHASE_STOPPING
 from .entity import PartnerEntity, PreferenceEntity, SpielSaisonEntity, hub_device
 from .manager import STATUS_ERROR, STATUS_IDLE, STATUS_RECORDING, PartnerCfg, PartnerState, SpielSaisonManager
 
@@ -35,10 +35,10 @@ async def async_setup_entry(
             config_subentry_id=sid,
         )
         for kind, name, _key in m.preferences(partner):
-            async_add_entities(
-                [PreferenceInfoSensor(m, partner, kind, name), PreferenceCountSensor(m, partner, kind, name)],
-                config_subentry_id=sid,
-            )
+            sensors: list[SensorEntity] = [PreferenceInfoSensor(m, partner, kind, name)]
+            if kind in COUNTED_KINDS:
+                sensors.append(PreferenceCountSensor(m, partner, kind, name))
+            async_add_entities(sensors, config_subentry_id=sid)
 
 
 class StatusSensor(SpielSaisonEntity, SensorEntity):
@@ -220,6 +220,8 @@ class PreferenceInfoSensor(PreferenceEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
+        if self.kind not in COUNTED_KINDS:
+            return {}
         return {"active": self.pref_key in self.manager.states[self.sid].pref_on}
 
 

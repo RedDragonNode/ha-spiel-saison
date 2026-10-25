@@ -53,7 +53,7 @@
       "step": {
         "user": {
           "title": "New play partner",
-          "description": "Every play partner has their own seasons, counters and folder. The cameras belong to the places you add for them afterwards. The number appears in the folder and the file name, for example as 02. The nickname is optional. For the preferences you type your own entries and confirm each with Enter. Everything you ever entered is offered for every further play partner. Every preference gets an entry under “Diagnostic” on the play partner's device, an “included” switch and a counter. The announcement is optional: it goes through a notify entity, for example an Echo, when a recording starts and ends. In the texts you can use the placeholders nickname, partner, nr, saison and ort, each in curly braces.",
+          "description": "Every play partner has their own seasons, counters and folder. The cameras belong to the places you add for them afterwards. The number appears in the folder and the file name, for example as 02. The nickname is optional. For the preferences you type your own entries and confirm each with Enter. Everything you ever entered is offered for every further play partner. Every preference gets an entry under “Diagnostic” on the play partner's device. Preferences for working also get an “included” switch and a counter. The announcement is optional: it goes through a notify entity, for example an Echo, when a recording starts and ends. In the texts you can use the placeholders nickname, partner, nr, saison and ort, each in curly braces.",
           "data": {
             "name": "Name",
             "number": "Number",

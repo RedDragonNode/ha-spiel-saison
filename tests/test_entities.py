@@ -261,17 +261,22 @@ async def test_diagnostics_hide_the_key(hass: HomeAssistant) -> None:
     assert "rtsp://" not in str(data)
 
 
-async def _setup_preferences(hass: HomeAssistant, **frank):
+async def _setup_preferences(hass: HomeAssistant):
     add_cameras(hass, "fuchs", "hase")
     return await setup_entry(
         hass,
-        [make_partner("Frank", 2, nickname="Franky", likes=["Seil", "Schal"], treats=["Feder"], **frank)],
+        [make_partner("Frank", 2, nickname="Franky", likes=["Seil", "Schal"], treats=["Feder", "Kette"])],
         [make_place("Bett")],
     )
 
 
 def _pref(hass: HomeAssistant, entry, domain: str, kind: str, name: str, role: str) -> str:
     return partner_entity(hass, entry, FRANK, domain, f"pref_{kind}_{name}_{role}")
+
+
+def _exists(hass: HomeAssistant, entry, domain: str, kind: str, name: str, role: str) -> bool:
+    uid = f"{entry.entry_id}_{FRANK}_pref_{kind}_{name}_{role}"
+    return er.async_get(hass).async_get_entity_id(domain, DOMAIN, uid) is not None
 
 
 async def test_the_status_sensor_shows_nickname_and_preferences(hass: HomeAssistant) -> None:
@@ -281,30 +286,40 @@ async def test_the_status_sensor_shows_nickname_and_preferences(hass: HomeAssist
 
     assert attributes["nickname"] == "Franky"
     assert attributes["likes"] == ["Seil", "Schal"]
-    assert attributes["treats"] == ["Feder"]
+    assert attributes["treats"] == ["Feder", "Kette"]
 
 
-async def test_every_preference_gets_its_own_diagnostic_entry_counter_and_switch(hass: HomeAssistant) -> None:
+async def test_own_preferences_only_appear_in_the_diagnostic_section(hass: HomeAssistant) -> None:
     entry = await _setup_preferences(hass)
     registry = er.async_get(hass)
 
-    for kind, name in (("like", "seil"), ("like", "schal"), ("treat", "feder")):
-        info = hass.states.get(_pref(hass, entry, "sensor", kind, name, "info"))
-        assert info.state == kind and info.attributes["active"] is False
-        assert hass.states.get(_pref(hass, entry, "sensor", kind, name, "count")).state == "0"
-        assert hass.states.get(_pref(hass, entry, "switch", kind, name, "active")).state == STATE_OFF
-        assert registry.async_get(_pref(hass, entry, "sensor", kind, name, "info")).entity_category == "diagnostic"
-        assert registry.async_get(_pref(hass, entry, "sensor", kind, name, "count")).entity_category is None
+    for name in ("seil", "schal"):
+        info = hass.states.get(_pref(hass, entry, "sensor", "like", name, "info"))
+        assert info.state == "like" and "active" not in info.attributes
+        assert registry.async_get(_pref(hass, entry, "sensor", "like", name, "info")).entity_category == "diagnostic"
+        assert not _exists(hass, entry, "sensor", "like", name, "count")  # kein Zähler bei den Sensoren
+        assert not _exists(hass, entry, "switch", "like", name, "active")  # kein Schalter bei der Steuerung
     assert hass.states.get(_pref(hass, entry, "sensor", "like", "seil", "info")).name == "Play partner Frank Seil"
+
+
+async def test_preferences_for_working_get_a_diagnostic_entry_a_counter_and_a_switch(hass: HomeAssistant) -> None:
+    entry = await _setup_preferences(hass)
+    registry = er.async_get(hass)
+
+    for name in ("feder", "kette"):
+        info = hass.states.get(_pref(hass, entry, "sensor", "treat", name, "info"))
+        assert info.state == "treat" and info.attributes["active"] is False
+        assert hass.states.get(_pref(hass, entry, "sensor", "treat", name, "count")).state == "0"
+        assert hass.states.get(_pref(hass, entry, "switch", "treat", name, "active")).state == STATE_OFF
+        assert registry.async_get(_pref(hass, entry, "sensor", "treat", name, "info")).entity_category == "diagnostic"
+        assert registry.async_get(_pref(hass, entry, "sensor", "treat", name, "count")).entity_category is None
 
 
 async def test_a_recording_counts_the_preferences_that_are_included(hass: HomeAssistant, stream) -> None:
     entry = await _setup_preferences(hass)
-    for kind, name in (("like", "seil"), ("treat", "feder")):
-        await hass.services.async_call(
-            "switch", "turn_on", {"entity_id": _pref(hass, entry, "switch", kind, name, "active")}, blocking=True
-        )
-    assert hass.states.get(_pref(hass, entry, "sensor", "like", "seil", "info")).attributes["active"] is True
+    feder = _pref(hass, entry, "switch", "treat", "feder", "active")
+    await hass.services.async_call("switch", "turn_on", {"entity_id": feder}, blocking=True)
+    assert hass.states.get(_pref(hass, entry, "sensor", "treat", "feder", "info")).attributes["active"] is True
     switch = partner_entity(hass, entry, FRANK, "switch", "recording")
 
     for _ in range(2):  # zwei Aufnahmen, der Schalter „dabei“ bleibt dazwischen
@@ -312,20 +327,20 @@ async def test_a_recording_counts_the_preferences_that_are_included(hass: HomeAs
         await hass.async_block_till_done(wait_background_tasks=True)
         await hass.services.async_call("switch", "turn_off", {"entity_id": switch}, blocking=True)
         await hass.async_block_till_done(wait_background_tasks=True)
+    await hass.services.async_call("switch", "turn_off", {"entity_id": feder}, blocking=True)
     await hass.services.async_call(
-        "switch", "turn_off", {"entity_id": _pref(hass, entry, "switch", "like", "seil", "active")}, blocking=True
+        "switch", "turn_on", {"entity_id": _pref(hass, entry, "switch", "treat", "kette", "active")}, blocking=True
     )
     await hass.services.async_call("switch", "turn_on", {"entity_id": switch}, blocking=True)
     await hass.async_block_till_done(wait_background_tasks=True)
 
-    assert hass.states.get(_pref(hass, entry, "sensor", "like", "seil", "count")).state == "2"
-    assert hass.states.get(_pref(hass, entry, "sensor", "treat", "feder", "count")).state == "3"
-    assert hass.states.get(_pref(hass, entry, "sensor", "like", "schal", "count")).state == "0"  # nie „dabei“
+    assert hass.states.get(_pref(hass, entry, "sensor", "treat", "feder", "count")).state == "2"
+    assert hass.states.get(_pref(hass, entry, "sensor", "treat", "kette", "count")).state == "1"
 
 
 async def test_the_included_switches_and_counters_survive_a_reload(hass: HomeAssistant, stream) -> None:
     entry = await _setup_preferences(hass)
-    switch = _pref(hass, entry, "switch", "like", "seil", "active")
+    switch = _pref(hass, entry, "switch", "treat", "feder", "active")
     await hass.services.async_call("switch", "turn_on", {"entity_id": switch}, blocking=True)
     recording = partner_entity(hass, entry, FRANK, "switch", "recording")
     await hass.services.async_call("switch", "turn_on", {"entity_id": recording}, blocking=True)
@@ -335,22 +350,45 @@ async def test_the_included_switches_and_counters_survive_a_reload(hass: HomeAss
     await hass.async_block_till_done(wait_background_tasks=True)
 
     assert hass.states.get(switch).state == STATE_ON
-    assert hass.states.get(_pref(hass, entry, "sensor", "like", "seil", "count")).state == "1"
+    assert hass.states.get(_pref(hass, entry, "sensor", "treat", "feder", "count")).state == "1"
 
 
 async def test_new_preferences_show_up_and_removed_ones_disappear(hass: HomeAssistant) -> None:
     entry = await _setup_preferences(hass)
     registry = er.async_get(hass)
-    removed = _pref(hass, entry, "sensor", "like", "schal", "count")
+    removed = [_pref(hass, entry, "sensor", "treat", "kette", role) for role in ("info", "count")]
+    removed.append(_pref(hass, entry, "switch", "treat", "kette", "active"))
+    removed.append(_pref(hass, entry, "sensor", "like", "schal", "info"))
 
     hass.config_entries.async_update_subentry(
         entry,
         entry.subentries[FRANK],
-        data={**entry.subentries[FRANK].data, "likes": ["Seil", "Peitsche"], "treats": ["Feder"]},
+        data={**entry.subentries[FRANK].data, "likes": ["Seil", "Peitsche"], "treats": ["Feder", "Netz"]},
     )
     await hass.async_block_till_done()
 
     assert hass.states.get(_pref(hass, entry, "sensor", "like", "peitsche", "info")) is not None
-    assert hass.states.get(_pref(hass, entry, "switch", "like", "peitsche", "active")) is not None
-    assert registry.async_get(removed) is None  # „Schal“ wurde gestrichen
-    assert registry.async_get(_pref(hass, entry, "switch", "like", "seil", "active")) is not None
+    assert not _exists(hass, entry, "switch", "like", "peitsche", "active")
+    for domain, role in (("sensor", "info"), ("sensor", "count"), ("switch", "active")):
+        assert hass.states.get(_pref(hass, entry, domain, "treat", "netz", role)) is not None
+    assert all(registry.async_get(entity_id) is None for entity_id in removed)  # „Kette“ und „Schal“ wurden gestrichen
+    assert registry.async_get(_pref(hass, entry, "switch", "treat", "feder", "active")) is not None
+
+
+async def test_the_counters_of_own_preferences_from_0_4_0_are_removed(hass: HomeAssistant) -> None:
+    entry = await _setup_preferences(hass)
+    registry = er.async_get(hass)
+    for role, domain in (("count", "sensor"), ("active", "switch")):  # so sah es in 0.4.0 aus
+        registry.async_get_or_create(
+            domain,
+            DOMAIN,
+            f"{entry.entry_id}_{FRANK}_pref_like_seil_{role}",
+            config_entry=entry,
+            config_subentry_id=FRANK,
+        )
+
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert not _exists(hass, entry, "sensor", "like", "seil", "count")
+    assert not _exists(hass, entry, "switch", "like", "seil", "active")

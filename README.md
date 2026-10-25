@@ -57,15 +57,15 @@ Die Kameras gehören nicht zum Spielpartner, sondern zu seinen Orten. Nach einem
 
 ### Vorlieben
 
-Die Vorlieben gibst du direkt beim Spielpartner ein, es braucht keine eigenen Einträge dafür. Neue Namen merkt sich die Integration im Hintergrund, bei jedem weiteren Spielpartner stehen sie zur Wahl. Am **Gerät des Spielpartners** bekommt jede Vorliebe:
+Die Vorlieben gibst du direkt beim Spielpartner ein, es braucht keine eigenen Einträge dafür. Neue Namen merkt sich die Integration im Hintergrund, bei jedem weiteren Spielpartner stehen sie zur Wahl. Am **Gerät des Spielpartners** bekommt jede Vorliebe einen Sensor unter **Diagnose**. Die **Vorlieben zum Bearbeiten** haben außerdem einen Schalter und einen Zähler, bei den eigenen Vorlieben gibt es nur den Diagnose-Sensor:
 
 | Entity | Bedeutung |
 |---|---|
-| Sensor (unter **Diagnose**) | die Vorliebe für sich, mit dem Namen der Vorliebe. Der Zustand nennt die Art (eigene Vorliebe oder Vorliebe zum Bearbeiten), das Attribut `active` zeigt, ob sie gerade „dabei“ ist |
-| Schalter **… dabei** | schaltest du vor dem Spielen ein, was dabei sein soll. Der Schalter bleibt, wie er ist, bis du ihn änderst |
-| Sensor **… Zähler** | bei wie vielen Aufnahmen die Vorliebe „dabei“ war. Beim Start einer Aufnahme zählt jede eingeschaltete Vorliebe +1 |
+| Sensor (unter **Diagnose**) | die Vorliebe für sich, mit dem Namen der Vorliebe. Der Zustand nennt die Art (eigene Vorliebe oder Vorliebe zum Bearbeiten), bei den Vorlieben zum Bearbeiten zeigt das Attribut `active`, ob sie gerade „dabei“ ist |
+| Schalter **… dabei** (nur Vorlieben zum Bearbeiten) | schaltest du vor dem Spielen ein, was dabei sein soll. Der Schalter bleibt, wie er ist, bis du ihn änderst |
+| Sensor **… Zähler** (nur Vorlieben zum Bearbeiten) | bei wie vielen Aufnahmen die Vorliebe „dabei“ war. Beim Start einer Aufnahme zählt jede eingeschaltete Vorliebe +1 |
 
-Fügst du beim Bearbeiten des Spielpartners eine Vorliebe hinzu, tauchen ihre drei Entities nach dem Speichern am Gerät auf, gestrichene verschwinden dort samt Entities. Der Zähler läuft unter dem Namen der Vorliebe weiter, solange er gleich bleibt. Die Listen stehen auch in den Attributen `nickname`, `likes` und `treats` des Status-Sensors, zum Beispiel für eigene Automationen.
+Fügst du beim Bearbeiten des Spielpartners eine Vorliebe hinzu, tauchen ihre Entities nach dem Speichern am Gerät auf, gestrichene verschwinden dort samt Entities. Der Zähler läuft unter dem Namen der Vorliebe weiter, solange er gleich bleibt. Die Listen stehen auch in den Attributen `nickname`, `likes` und `treats` des Status-Sensors, zum Beispiel für eigene Automationen.
 
 ## Entities
 
@@ -129,7 +129,7 @@ Die Tests der App brauchen `ffmpeg` und laufen sonst nur teilweise. In der CI la
 
 ## English
 
-**Spiel Saison** manages seasons, play partners and recordings in Home Assistant. Every play partner has fixed cameras, their own seasons and counters. One switch sets up a place (move the Ctronics cameras to a PTZ preset, switch lights and devices, make an announcement), waits for the lead time and starts a stream-copy recording through the app **Spiel Saison Recorder** (ffmpeg `-c copy`, no re-encoding). When you stop, it waits, puts everything back and updates the statistics. Every place belongs to a play partner and brings its cameras, with a PTZ position per Ctronics camera taken from the camera's stored positions; the announcement belongs to the play partner, together with an optional nickname (a placeholder for the announcements) and two lists of preferences that you type in directly; every preference gets a diagnostic sensor, an “included” switch and a counter on the device. Preparing a place also begins the season of the day, at most one season begins per day. Folder and file names come from patterns with placeholders for partner, season, recording number and camera name. The integration offers services and events for your own automations. Install the integration through HACS and add this repository to the App store for the recorder. The texts in the UI are available in German and English.
+**Spiel Saison** manages seasons, play partners and recordings in Home Assistant. Every play partner has fixed cameras, their own seasons and counters. One switch sets up a place (move the Ctronics cameras to a PTZ preset, switch lights and devices, make an announcement), waits for the lead time and starts a stream-copy recording through the app **Spiel Saison Recorder** (ffmpeg `-c copy`, no re-encoding). When you stop, it waits, puts everything back and updates the statistics. Every place belongs to a play partner and brings its cameras, with a PTZ position per Ctronics camera taken from the camera's stored positions; the announcement belongs to the play partner, together with an optional nickname (a placeholder for the announcements) and two lists of preferences that you type in directly; every preference gets a diagnostic sensor on the device, and preferences for working also get an “included” switch and a counter. Preparing a place also begins the season of the day, at most one season begins per day. Folder and file names come from patterns with placeholders for partner, season, recording number and camera name. The integration offers services and events for your own automations. Install the integration through HACS and add this repository to the App store for the recorder. The texts in the UI are available in German and English.
 
 ## Lizenz
 

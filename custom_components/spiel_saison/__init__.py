@@ -32,6 +32,7 @@ from .const import (
     CONF_PTZ_PRESET,
     CONF_TREAT_CATALOG,
     CONF_TREATS,
+    COUNTED_KINDS,
     DOMAIN,
     OLD_CAM_NUMBER_PART,
     SERVICE_NEW_SEASON,
@@ -213,7 +214,7 @@ def _drop_stale_preference_entities(hass: HomeAssistant, entry: ConfigEntry, man
         f"{entry.entry_id}_{sid}_{preference_unique_part(kind, name, role)}"
         for sid, partner in manager.partners.items()
         for kind, name, _key in manager.preferences(partner)
-        for role in ("info", "count", "active")
+        for role in (("info", "count", "active") if kind in COUNTED_KINDS else ("info",))
     }
     registry = er.async_get(hass)
     for ent in er.async_entries_for_config_entry(registry, entry.entry_id):

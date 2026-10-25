@@ -9,7 +9,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import SpielSaisonConfigEntry
-from .const import PHASE_RECORDING, PHASE_STARTING
+from .const import COUNTED_KINDS, PHASE_RECORDING, PHASE_STARTING
 from .entity import PartnerEntity, PreferenceEntity
 from .manager import PartnerCfg, SpielSaisonManager
 
@@ -21,7 +21,8 @@ async def async_setup_entry(
     for sid, partner in m.partners.items():
         async_add_entities([RecordingSwitch(m, partner)], config_subentry_id=sid)
         for kind, name, _key in m.preferences(partner):
-            async_add_entities([PreferenceSwitch(m, partner, kind, name)], config_subentry_id=sid)
+            if kind in COUNTED_KINDS:
+                async_add_entities([PreferenceSwitch(m, partner, kind, name)], config_subentry_id=sid)
 
 
 class RecordingSwitch(PartnerEntity, SwitchEntity):
