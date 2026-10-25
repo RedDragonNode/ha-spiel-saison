@@ -31,23 +31,16 @@ from .const import (
     CONF_BASE_FOLDER,
     CONF_CAM_PRESETS,
     CONF_CAMS,
-    CONF_COVER,
-    CONF_COVER_POSITION,
     CONF_END_OFF,
     CONF_END_ON,
     CONF_END_SECONDS,
     CONF_FILE_PATTERN,
-    CONF_FINISH_COVER,
-    CONF_FINISH_COVER_POSITION,
-    CONF_FINISH_OFF,
-    CONF_FINISH_ON,
     CONF_LEAD_SECONDS,
     CONF_LIKES,
     CONF_NICKNAME,
     CONF_NUMBER,
     CONF_PARTNER,
     CONF_PARTNER_PATTERN,
-    CONF_PREPARE_ON,
     CONF_RECORDER_KEY,
     CONF_RECORDER_URL,
     CONF_SEASON_PATTERN,
@@ -71,11 +64,20 @@ from .const import (
     EVENT_STOPPED,
     KIND_LIKE,
     KIND_TREAT,
+    LIGHT_BRIGHTNESS,
+    LIGHT_RGB,
+    OPT_FINISH,
+    OPT_PREPARE,
     PHASE_IDLE,
     PHASE_RECORDING,
     PHASE_STARTING,
     PHASE_STOPPING,
     POLL_SECONDS,
+    STEP_COVER,
+    STEP_COVER_POSITION,
+    STEP_LIGHTS,
+    STEP_OFF,
+    STEP_ON,
     STORAGE_VERSION,
     SUBENTRY_PARTNER,
     SUBENTRY_PLACE,
@@ -113,19 +115,23 @@ class PlaceCfg:
     partner_id: str
     cams: list[str] = field(default_factory=list)
     cam_presets: dict[str, int] = field(default_factory=dict)  # Kamera -> PTZ-Position, fehlt = nicht bewegen
-    prepare_on: dict[str, Any] = field(default_factory=dict)
-    cover: str = ""
-    cover_position: int = DEFAULT_COVER_POSITION
     start_off: dict[str, Any] = field(default_factory=dict)
     start_on: dict[str, Any] = field(default_factory=dict)
     end_off: dict[str, Any] = field(default_factory=dict)
     end_on: dict[str, Any] = field(default_factory=dict)
-    finish_off: dict[str, Any] = field(default_factory=dict)  # nur für die Taste „Saison beenden“
-    finish_on: dict[str, Any] = field(default_factory=dict)
-    finish_cover: str = ""
-    finish_cover_position: int = DEFAULT_FINISH_COVER_POSITION
     lead_s: int = DEFAULT_LEAD_SECONDS
     end_s: int = DEFAULT_END_SECONDS
+
+
+@dataclass
+class SeasonStep:
+    """Was eine der Tasten „Saison vorbereiten“ und „Saison beenden“ schaltet (für alle Spielpartner gleich)."""
+
+    off: dict[str, Any] = field(default_factory=dict)
+    on: dict[str, Any] = field(default_factory=dict)
+    lights: dict[str, dict[str, Any]] = field(default_factory=dict)  # Licht -> rgb und brightness, beides optional
+    cover: str = ""
+    cover_position: int = DEFAULT_COVER_POSITION
 
 
 @dataclass
@@ -151,6 +157,21 @@ def _target(value: Any) -> dict[str, Any]:
     return {k: v for k, v in (value or {}).items() if v} if isinstance(value, dict) else {}
 
 
+def _season_step(raw: Any, default_position: int) -> SeasonStep:
+    """Einstellungen einer der beiden Tasten aus den Optionen des Eintrags."""
+    raw = raw if isinstance(raw, dict) else {}
+    return SeasonStep(
+        off=_target(raw.get(STEP_OFF)),
+        on=_target(raw.get(STEP_ON)),
+        lights={
+            eid: {key: value for key, value in (values or {}).items() if key in (LIGHT_RGB, LIGHT_BRIGHTNESS) and value}
+            for eid, values in (raw.get(STEP_LIGHTS) or {}).items()
+        },
+        cover=raw.get(STEP_COVER) or "",
+        cover_position=int(raw.get(STEP_COVER_POSITION, default_position)),
+    )
+
+
 def counters_store(hass: HomeAssistant, entry_id: str) -> Store[dict[str, Any]]:
     """Speicher für Zähler, Auswertung, gewählten Ort und laufende Aufnahmen."""
     return Store(hass, STORAGE_VERSION, f"{DOMAIN}.{entry_id}")
@@ -167,6 +188,8 @@ class SpielSaisonManager:
         self._unsubs: list[CALLBACK_TYPE] = []
         self.partners: dict[str, PartnerCfg] = {}
         self.places: dict[str, PlaceCfg] = {}
+        self.prepare_step = SeasonStep()
+        self.finish_step = SeasonStep(cover_position=DEFAULT_FINISH_COVER_POSITION)
         self.states: dict[str, PartnerState] = {}
         self.runs: dict[str, dict[str, Any]] = {}  # laufende Abläufe je Spielpartner
         self.place_ids: dict[str, str] = {}  # gewählter Ort je Spielpartner
@@ -186,6 +209,8 @@ class SpielSaisonManager:
         """Zähler laden und Spielpartner und Orte aus den Untereinträgen aufbauen."""
         stored = await self._store.async_load() or {}
         self._read_subentries()
+        self.prepare_step = _season_step(self.entry.options.get(OPT_PREPARE), DEFAULT_COVER_POSITION)
+        self.finish_step = _season_step(self.entry.options.get(OPT_FINISH), DEFAULT_FINISH_COVER_POSITION)
         known = {f.name for f in fields(PartnerState)}
         today = dt_util.now().date().isoformat()
         for sid in self.partners:
@@ -238,17 +263,10 @@ class SpielSaisonManager:
                     for eid, number in (d.get(CONF_CAM_PRESETS) or {}).items()
                     if eid in cams and number
                 },
-                prepare_on=_target(d.get(CONF_PREPARE_ON)),
-                cover=d.get(CONF_COVER) or "",
-                cover_position=int(d.get(CONF_COVER_POSITION, DEFAULT_COVER_POSITION)),
                 start_off=_target(d.get(CONF_START_OFF)),
                 start_on=_target(d.get(CONF_START_ON)),
                 end_off=_target(d.get(CONF_END_OFF)),
                 end_on=_target(d.get(CONF_END_ON)),
-                finish_off=_target(d.get(CONF_FINISH_OFF)),
-                finish_on=_target(d.get(CONF_FINISH_ON)),
-                finish_cover=d.get(CONF_FINISH_COVER) or "",
-                finish_cover_position=int(d.get(CONF_FINISH_COVER_POSITION, DEFAULT_FINISH_COVER_POSITION)),
                 lead_s=int(d.get(CONF_LEAD_SECONDS, DEFAULT_LEAD_SECONDS)),
                 end_s=int(d.get(CONF_END_SECONDS, DEFAULT_END_SECONDS)),
             )
@@ -559,22 +577,19 @@ class SpielSaisonManager:
             message = logic.render_pattern(text, dt_util.now(), values)
             await self._call("notify", "send_message", {"entity_id": partner.announce_entity, "message": message})
 
-    async def _stage_prepare(self, place: PlaceCfg) -> None:
-        await self._turn("turn_on", place.prepare_on)
-        if place.cover:
-            await self._call(
-                "cover", "set_cover_position", {"entity_id": place.cover, "position": place.cover_position}
-            )
-
-    async def _stage_finish(self, place: PlaceCfg) -> None:
-        await self._turn("turn_off", place.finish_off)
-        await self._turn("turn_on", place.finish_on)
-        if place.finish_cover:
-            await self._call(
-                "cover",
-                "set_cover_position",
-                {"entity_id": place.finish_cover, "position": place.finish_cover_position},
-            )
+    async def _stage_season(self, step: SeasonStep) -> None:
+        """„Saison vorbereiten“ oder „Saison beenden“: ausschalten, einschalten, Lichter mit Farbe, Rollo oder Winde."""
+        await self._turn("turn_off", step.off)
+        await self._turn("turn_on", step.on)
+        for entity_id, look in step.lights.items():
+            data: dict[str, Any] = {"entity_id": entity_id}
+            if LIGHT_BRIGHTNESS in look:
+                data["brightness_pct"] = int(look[LIGHT_BRIGHTNESS])
+            if LIGHT_RGB in look:
+                data["rgb_color"] = [int(part) for part in look[LIGHT_RGB]]
+            await self._call("light", "turn_on", data)
+        if step.cover:
+            await self._call("cover", "set_cover_position", {"entity_id": step.cover, "position": step.cover_position})
 
     async def _stage_start(self, partner: PartnerCfg, place: PlaceCfg, cams: list[str]) -> None:
         by_preset: dict[int, list[str]] = {}  # Kameras mit derselben Position in einem Aufruf
@@ -596,29 +611,32 @@ class SpielSaisonManager:
         await self._announce(partner, place, partner.announce_end)
 
     async def async_prepare(self, ref: str, place_ref: str | None = None) -> dict[str, Any]:
-        """Neue Saison beginnen (einmal pro Tag) und den Ort vorbereiten, ohne die Aufnahme zu starten."""
+        """Neue Saison beginnen (einmal pro Tag), ihren Ordner anlegen und „Saison vorbereiten“ ausführen.
+
+        Der Ort (der angegebene, sonst der gewählte) füllt nur den Platzhalter `ort` der Ordner-Muster.
+        Ein Spielpartner ohne Ort kann die Saison trotzdem vorbereiten.
+        """
         p = self.partner(ref)
-        place = self._place_or_raise(p, place_ref)
+        place = self.place(p.subentry_id, place_ref)
         new_season = self.phase(p.subentry_id) == PHASE_IDLE and await self._begin_season(p)
         folder = self._season_folder(p, place, dt_util.now())
         created = await self._ensure_folder(p, folder)
-        await self._stage_prepare(place)
+        await self._stage_season(self.prepare_step)
         if created is not None:  # sonst bleibt die Meldung zum Saison-Ordner stehen
-            self._set_message(f"{p.name}: prepared ({place.name})")
+            self._set_message(f"{p.name}: prepared")
         self.notify()
         return {
             "partner": p.name,
-            "place": place.name,
+            "place": place.name if place else "",
             "season": self.states[p.subentry_id].season,
             "new_season": new_season,
             "folder": "/".join(folder),
             "folder_created": created,
         }
 
-    async def async_end_season(self, ref: str, place_ref: str | None = None) -> dict[str, Any]:
-        """Die Saison des Spielpartners beenden: den Beenden-Schritt des Ortes ausführen, nur ohne laufende Aufnahme."""
+    async def async_end_season(self, ref: str) -> dict[str, Any]:
+        """Die Saison des Spielpartners beenden: „Saison beenden“ ausführen, nur ohne laufende Aufnahme."""
         p = self.partner(ref)
-        place = self._place_or_raise(p, place_ref)
         if self.phase(p.subentry_id) != PHASE_IDLE:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
@@ -626,10 +644,9 @@ class SpielSaisonManager:
                 translation_placeholders={"partner": p.name},
             )
         st = self.states[p.subentry_id]
-        await self._stage_finish(place)
+        await self._stage_season(self.finish_step)
         result = {
             "partner": p.name,
-            "place": place.name,
             "season": st.season,
             "recordings": st.count_season,
             "seconds": round(st.seconds_season),
@@ -638,7 +655,7 @@ class SpielSaisonManager:
             EVENT_SEASON_ENDED,
             {**result, "partner_id": p.subentry_id, "nickname": p.nickname, "start": st.season_start},
         )
-        self._set_message(f"{p.name}: season {st.season} ended ({place.name})")
+        self._set_message(f"{p.name}: season {st.season} ended")
         self.notify()
         return result
 

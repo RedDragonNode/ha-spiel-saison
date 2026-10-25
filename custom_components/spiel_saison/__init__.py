@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from types import MappingProxyType
 from typing import Any
 
@@ -25,21 +26,34 @@ from .const import (
     CONF_ANNOUNCE_START,
     CONF_CAM_PRESETS,
     CONF_CAMS,
+    CONF_COVER,
+    CONF_COVER_POSITION,
     CONF_FILE_PATTERN,
+    CONF_FINISH_COVER,
+    CONF_FINISH_COVER_POSITION,
+    CONF_FINISH_OFF,
+    CONF_FINISH_ON,
     CONF_LIKE_CATALOG,
     CONF_LIKES,
     CONF_PARTNER,
+    CONF_PREPARE_ON,
     CONF_PTZ_PRESET,
     CONF_TREAT_CATALOG,
     CONF_TREATS,
     COUNTED_KINDS,
     DOMAIN,
     OLD_CAM_NUMBER_PART,
+    OPT_FINISH,
+    OPT_PREPARE,
     SERVICE_END_SEASON,
     SERVICE_NEW_SEASON,
     SERVICE_PREPARE,
     SERVICE_START,
     SERVICE_STOP,
+    STEP_COVER,
+    STEP_COVER_POSITION,
+    STEP_OFF,
+    STEP_ON,
     SUBENTRY_LIKE,
     SUBENTRY_PARTNER,
     SUBENTRY_PLACE,
@@ -47,6 +61,8 @@ from .const import (
 )
 from .entity import preference_unique_part
 from .manager import SpielSaisonManager, counters_store
+
+_LOGGER = logging.getLogger(__name__)
 
 _ANNOUNCE_KEYS = (CONF_ANNOUNCE_ENTITY, CONF_ANNOUNCE_START, CONF_ANNOUNCE_END)
 
@@ -83,7 +99,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         return await _manager(hass).async_new_season(call.data[ATTR_PARTNER])
 
     async def end_season(call: ServiceCall) -> dict:
-        return await _manager(hass).async_end_season(call.data[ATTR_PARTNER], call.data.get(ATTR_PLACE))
+        return await _manager(hass).async_end_season(call.data[ATTR_PARTNER])
 
     with_place = vol.Schema({vol.Required(ATTR_PARTNER): cv.string, vol.Optional(ATTR_PLACE): cv.string})
     partner_only = vol.Schema({vol.Required(ATTR_PARTNER): cv.string})
@@ -92,7 +108,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         (SERVICE_STOP, stop, partner_only),
         (SERVICE_PREPARE, prepare, with_place),
         (SERVICE_NEW_SEASON, new_season, partner_only),
-        (SERVICE_END_SEASON, end_season, with_place),
+        (SERVICE_END_SEASON, end_season, partner_only),
     ):
         hass.services.async_register(DOMAIN, name, handler, schema, supports_response=SupportsResponse.OPTIONAL)
     return True
@@ -142,7 +158,44 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # 1.4: Vorlieben sind keine eigenen Einträge mehr, die Spielpartner tragen die Namen selbst
         _preferences_to_names(hass, entry)
         hass.config_entries.async_update_entry(entry, minor_version=4)
+    if entry.minor_version < 5:
+        # 1.5: „Saison vorbereiten“ und „Saison beenden“ gelten für alle und stehen bei den Optionen des Eintrags
+        _season_settings_to_options(hass, entry)
     return True
+
+
+_LEGACY_STEPS = {
+    OPT_PREPARE: {CONF_PREPARE_ON: STEP_ON, CONF_COVER: STEP_COVER, CONF_COVER_POSITION: STEP_COVER_POSITION},
+    OPT_FINISH: {
+        CONF_FINISH_OFF: STEP_OFF,
+        CONF_FINISH_ON: STEP_ON,
+        CONF_FINISH_COVER: STEP_COVER,
+        CONF_FINISH_COVER_POSITION: STEP_COVER_POSITION,
+    },
+}
+
+
+def _season_settings_to_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Die Einstellungen der Tasten aus den Orten (0.6.x) wandern in die Optionen, die des ersten Ortes gelten."""
+    places = [s for s in entry.subentries.values() if s.subentry_type == SUBENTRY_PLACE]
+    options = dict(entry.options)
+    for section, legacy in _LEGACY_STEPS.items():
+        found = []
+        for place in places:
+            step = {new: place.data[old] for old, new in legacy.items() if place.data.get(old)}
+            if STEP_COVER not in step:
+                step.pop(STEP_COVER_POSITION, None)  # eine Position ohne Rollo oder Winde gilt für nichts
+            if step:
+                found.append(step)
+        if found and section not in options:
+            options[section] = found[0]
+        if any(step != found[0] for step in found[1:]):
+            _LOGGER.warning("Die Orte hatten verschiedene Einstellungen für %s, es gelten die des ersten", section)
+        for place in places:
+            data = {key: value for key, value in place.data.items() if key not in legacy}
+            if data != dict(place.data):
+                hass.config_entries.async_update_subentry(entry, place, data=data)
+    hass.config_entries.async_update_entry(entry, options=options, minor_version=5)
 
 
 def _preferences_to_names(hass: HomeAssistant, entry: ConfigEntry) -> None:

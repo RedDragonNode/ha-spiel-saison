@@ -1,4 +1,4 @@
-"""Umstellung gespeicherter Einträge auf den heutigen Aufbau (Version 1.3)."""
+"""Umstellung gespeicherter Einträge auf den heutigen Aufbau (Version 1.5)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.spiel_saison.const import DOMAIN
 from custom_components.spiel_saison.manager import counters_store
 
-from .conftest import KEY, URL, add_cameras, make_partner, setup_entry
+from .conftest import KEY, URL, add_cameras, make_partner, make_place, setup_entry
 
 OLD_PATTERN = "#{nr}.{saison}.{aufnahme}.Cam ID.{cam_nr} (4K) %DD.%MM.%CCYY"
 
@@ -25,14 +25,14 @@ def _old_place(name: str, **fields) -> dict:
 async def test_the_stored_file_pattern_gets_the_camera_name_instead_of_the_number(hass: HomeAssistant) -> None:
     entry = await setup_entry(hass, minor_version=1, file_pattern=OLD_PATTERN)
 
-    assert entry.minor_version == 4
+    assert entry.minor_version == 5
     assert entry.data["file_pattern"] == "#{nr}.{saison}.{aufnahme}.Cam ID.{cam} (4K) %DD.%MM.%CCYY"
 
 
 async def test_an_own_file_pattern_is_left_alone(hass: HomeAssistant) -> None:
     entry = await setup_entry(hass, minor_version=1, file_pattern="{cam} {cam_nr}")
 
-    assert entry.minor_version == 4
+    assert entry.minor_version == 5
     assert entry.data["file_pattern"] == "{cam} {cam_nr}"
 
 
@@ -57,7 +57,7 @@ async def test_cameras_move_from_the_partner_to_the_place(
         minor_version=2,
     )
 
-    assert entry.minor_version == 4
+    assert entry.minor_version == 5
     partner = entry.subentries["p_Tobias"]
     assert partner.data == {
         "name": "Tobias",
@@ -157,7 +157,7 @@ async def test_the_old_hub_select_is_removed(hass: HomeAssistant, entity_registr
     await hass.async_block_till_done()
 
     assert entity_registry.async_get(stale.entity_id) is None
-    assert entry.minor_version == 4
+    assert entry.minor_version == 5
 
 
 async def test_the_preference_entries_of_0_3_become_names(hass: HomeAssistant) -> None:
@@ -185,10 +185,60 @@ async def test_the_preference_entries_of_0_3_become_names(hass: HomeAssistant) -
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
-    assert entry.minor_version == 4
+    assert entry.minor_version == 5
     assert entry.subentries["p_Tobias"].data["likes"] == ["Seil"]  # „Weg“ gab es nicht mehr
     assert entry.subentries["p_Tobias"].data["treats"] == ["Feder"]
     assert not [s for s in entry.subentries.values() if s.subentry_type in ("like", "treat")]
     assert entry.data["like_catalog"] == ["Seil", "Frei"]  # auch nicht gewählte bleiben für neue Spielpartner
     assert entry.data["treat_catalog"] == ["Feder"]
     assert entry.runtime_data.partners["p_Tobias"].likes == ["Seil"]
+
+
+async def test_the_settings_of_the_season_buttons_move_from_the_place_to_the_options(hass: HomeAssistant) -> None:
+    add_cameras(hass, "fuchs")
+    entry = await setup_entry(
+        hass,
+        [make_partner("Frank", 2)],
+        [
+            make_place(
+                "Schaukel",
+                cams=("camera.fuchs",),
+                start_on={"entity_id": ["light.schaukel"]},
+                prepare_on={"entity_id": ["switch.winde"]},
+                cover="cover.winde",
+                cover_position=50,
+                finish_off={"entity_id": ["switch.winde"]},
+                finish_cover="cover.rollo",
+                finish_cover_position=10,
+            ),
+            make_place("Bett", cams=("camera.fuchs",), prepare_on={"entity_id": ["light.bett"]}),
+        ],
+        minor_version=4,
+    )
+
+    assert entry.minor_version == 5
+    assert entry.options == {
+        "prepare": {"on": {"entity_id": ["switch.winde"]}, "cover": "cover.winde", "cover_position": 50},
+        "finish": {"off": {"entity_id": ["switch.winde"]}, "cover": "cover.rollo", "cover_position": 10},
+    }  # bei verschiedenen Orten gilt der erste
+    assert entry.subentries["o_Schaukel"].data == {
+        "name": "Schaukel",
+        "partner": "p_Frank",
+        "cams": ["camera.fuchs"],
+        "cam_presets": {},
+        "lead_seconds": 0,
+        "end_seconds": 0,
+        "start_on": {"entity_id": ["light.schaukel"]},
+    }  # Beginn und Ende bleiben beim Ort
+    assert "prepare_on" not in entry.subentries["o_Bett"].data
+    runtime = entry.runtime_data
+    assert runtime.prepare_step.cover == "cover.winde" and runtime.finish_step.cover_position == 10
+
+
+async def test_places_without_settings_leave_the_options_empty(hass: HomeAssistant) -> None:
+    add_cameras(hass, "fuchs")
+    entry = await setup_entry(
+        hass, [make_partner("Frank", 2)], [make_place("Bett", cams=("camera.fuchs",))], minor_version=4
+    )
+
+    assert entry.minor_version == 5 and entry.options == {}

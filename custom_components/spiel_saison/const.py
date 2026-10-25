@@ -44,12 +44,13 @@ CONF_PARTNER = "partner"  # Subentry-ID des Spielpartners, zu dem der Ort gehör
 CONF_CAMS = "cams"  # Kamera-Entities (camera.*) des Ortes
 CONF_CAM_PRESETS = "cam_presets"  # Kamera-Entity -> PTZ-Position der Ctronics-Kamera (fehlt = nicht bewegen)
 CONF_PTZ_PRESET = "ptz_preset"  # bis 0.1.x: eine PTZ-Position für alle Kameras (nur noch für die Umstellung)
-CONF_PREPARE_ON = "prepare_on"  # Ziele (Entities, Bereiche, Labels), die beim Vorbereiten eingeschaltet werden
-CONF_COVER = "cover"  # Rollo, Winde oder Ähnliches, das beim Vorbereiten auf eine Position fährt
+# bis 0.6.x standen „Saison vorbereiten“ und „Saison beenden“ beim Ort (nur noch für die Umstellung auf 1.5)
+CONF_PREPARE_ON = "prepare_on"
+CONF_COVER = "cover"
 CONF_COVER_POSITION = "cover_position"
-CONF_FINISH_OFF = "finish_off"  # Ziele, die beim Beenden der Saison ausgeschaltet werden
-CONF_FINISH_ON = "finish_on"  # Ziele, die beim Beenden der Saison eingeschaltet werden
-CONF_FINISH_COVER = "finish_cover"  # Rollo, Winde oder Ähnliches, das beim Beenden der Saison auf eine Position fährt
+CONF_FINISH_OFF = "finish_off"
+CONF_FINISH_ON = "finish_on"
+CONF_FINISH_COVER = "finish_cover"
 CONF_FINISH_COVER_POSITION = "finish_cover_position"
 CONF_START_OFF = "start_off"
 CONF_START_ON = "start_on"
@@ -63,15 +64,18 @@ DEFAULT_END_SECONDS = 10
 DEFAULT_COVER_POSITION = 50
 DEFAULT_FINISH_COVER_POSITION = 0
 
-TARGET_FIELDS = (
-    CONF_PREPARE_ON,
-    CONF_START_OFF,
-    CONF_START_ON,
-    CONF_END_OFF,
-    CONF_END_ON,
-    CONF_FINISH_OFF,
-    CONF_FINISH_ON,
-)
+TARGET_FIELDS = (CONF_START_OFF, CONF_START_ON, CONF_END_OFF, CONF_END_ON)
+
+# --- Einstellungen der Tasten „Saison vorbereiten“ und „Saison beenden“ (config_entry.options) ----
+OPT_PREPARE = "prepare"  # gelten für alle Spielpartner und Orte, nicht für die Aufnahme
+OPT_FINISH = "finish"
+STEP_OFF = "off"  # Ziele (Entities, Bereiche, Labels), die ausgeschaltet werden
+STEP_ON = "on"  # Ziele, die eingeschaltet werden
+STEP_LIGHTS = "lights"  # Licht-Entity -> {rgb: [r, g, b], brightness: 1-100}, wird mit diesen Werten eingeschaltet
+STEP_COVER = "cover"  # Rollo, Winde oder Ähnliches, das auf eine Position fährt
+STEP_COVER_POSITION = "cover_position"
+LIGHT_RGB = "rgb"
+LIGHT_BRIGHTNESS = "brightness"
 
 CTRONICS_DOMAIN = "ctronics_cam"  # nur diese Kameras fahren eine PTZ-Position an
 CTRONICS_PRESETS_OPTION = "presets"  # Option der Ctronics-Integration: Zeilen wie "1: Schaukel"

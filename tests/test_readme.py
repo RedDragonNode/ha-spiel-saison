@@ -20,5 +20,11 @@ def test_the_readme_keeps_its_sections() -> None:
         "## English",
         "## Lizenz",
     ]
-    for section in ("### Spielpartner", "### Vorlieben", "### Orte", "### Saison"):
+    for section in (
+        "### Spielpartner",
+        "### Vorlieben",
+        "### Orte",
+        "### Saison vorbereiten und Saison beenden",
+        "### Saison",
+    ):
         assert section in README

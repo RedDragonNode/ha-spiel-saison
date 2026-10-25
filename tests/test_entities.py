@@ -17,10 +17,13 @@ from .conftest import FakeRecorder, add_cameras, hub_entity, make_partner, make_
 FRANK = "p_Frank"
 
 
-async def _setup(hass: HomeAssistant, places: list[dict] | None = None):
+async def _setup(hass: HomeAssistant, places: list[dict] | None = None, options: dict | None = None):
     add_cameras(hass, "fuchs", "hase")
     return await setup_entry(
-        hass, [make_partner("Frank", 2)], places if places is not None else [make_place("Spielzimmer")]
+        hass,
+        [make_partner("Frank", 2)],
+        places if places is not None else [make_place("Spielzimmer")],
+        options=options,
     )
 
 
@@ -132,7 +135,7 @@ async def test_the_counters_can_be_set_by_hand_and_survive_a_reload(hass: HomeAs
 
 
 async def test_the_prepare_button(hass: HomeAssistant, service_calls) -> None:
-    entry = await _setup(hass, [make_place("Bett", prepare_on={"entity_id": ["switch.winde"]})])
+    entry = await _setup(hass, options={"prepare": {"on": {"entity_id": ["switch.winde"]}}})
     entry.runtime_data.states[FRANK].season_start = (dt_util.now().date() - timedelta(days=1)).isoformat()
     season = partner_entity(hass, entry, FRANK, "number", "season")
 
@@ -141,7 +144,7 @@ async def test_the_prepare_button(hass: HomeAssistant, service_calls) -> None:
     )
 
     assert [(c.domain, c.service) for c in service_calls] == [("homeassistant", "turn_on")]
-    assert hass.states.get(season).state == "2"  # Vorbereiten hat die Saison des Tages begonnen
+    assert hass.states.get(season).state == "2"  # Saison vorbereiten hat die Saison des Tages begonnen
     assert (
         "mkdir",
         ["Spielen", "Spielen mit Frank #02", f"Saison 02 vom {dt_util.now():%d,%m,%Y}"],
@@ -149,13 +152,11 @@ async def test_the_prepare_button(hass: HomeAssistant, service_calls) -> None:
 
 
 async def test_the_end_season_button(hass: HomeAssistant, service_calls) -> None:
-    place = make_place(
-        "Bett",
-        prepare_on={"entity_id": ["switch.vorher"]},
-        finish_off={"entity_id": ["switch.winde"]},
-        finish_cover="cover.rollo",
-    )
-    entry = await _setup(hass, [place])
+    options = {
+        "prepare": {"on": {"entity_id": ["switch.vorher"]}},
+        "finish": {"off": {"entity_id": ["switch.winde"]}, "cover": "cover.rollo"},
+    }
+    entry = await _setup(hass, options=options)
     prepare = partner_entity(hass, entry, FRANK, "button", "prepare")
     end = partner_entity(hass, entry, FRANK, "button", "end_season")
 

@@ -1,4 +1,4 @@
-"""Kamera-Helfer: Anzeigename und die PTZ-Positionen der Ctronics-Kameras."""
+"""Kamera-Helfer: Anzeigename und die PTZ-Positionen der Ctronics-Kameras, dazu der Name einer Entity."""
 
 from __future__ import annotations
 
@@ -23,6 +23,12 @@ def cam_name(hass: HomeAssistant, entity_id: str) -> str:
     if (state := hass.states.get(entity_id)) and state.name:
         return state.name
     return (ent.name or ent.original_name) if ent and (ent.name or ent.original_name) else entity_id
+
+
+def entity_title(hass: HomeAssistant, entity_id: str) -> str:
+    """Anzeigename einer Entity (zum Beispiel eines Lichts): ihr Name im Zustand, sonst die Entity-ID."""
+    state = hass.states.get(entity_id)
+    return state.name if state and state.name else entity_id
 
 
 def is_ctronics(hass: HomeAssistant, entity_id: str) -> bool:

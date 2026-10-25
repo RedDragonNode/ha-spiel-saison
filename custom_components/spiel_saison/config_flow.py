@@ -11,6 +11,7 @@ from homeassistant.config_entries import (
     ConfigFlow,
     ConfigFlowResult,
     ConfigSubentryFlow,
+    OptionsFlow,
     SubentryFlowResult,
 )
 from homeassistant.const import CONF_NAME
@@ -19,7 +20,7 @@ from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from . import logic
-from .cams import cam_name, ctronics_presets, preset_options
+from .cams import cam_name, ctronics_presets, entity_title, preset_options
 from .const import (
     CONF_ANNOUNCE_END,
     CONF_ANNOUNCE_ENTITY,
@@ -27,16 +28,10 @@ from .const import (
     CONF_BASE_FOLDER,
     CONF_CAM_PRESETS,
     CONF_CAMS,
-    CONF_COVER,
-    CONF_COVER_POSITION,
     CONF_END_OFF,
     CONF_END_ON,
     CONF_END_SECONDS,
     CONF_FILE_PATTERN,
-    CONF_FINISH_COVER,
-    CONF_FINISH_COVER_POSITION,
-    CONF_FINISH_OFF,
-    CONF_FINISH_ON,
     CONF_LEAD_SECONDS,
     CONF_LIKE_CATALOG,
     CONF_LIKES,
@@ -44,7 +39,6 @@ from .const import (
     CONF_NUMBER,
     CONF_PARTNER,
     CONF_PARTNER_PATTERN,
-    CONF_PREPARE_ON,
     CONF_RECORDER_KEY,
     CONF_RECORDER_URL,
     CONF_SEASON_PATTERN,
@@ -62,6 +56,15 @@ from .const import (
     DEFAULT_RECORDER_URL,
     DEFAULT_SEASON_PATTERN,
     DOMAIN,
+    LIGHT_BRIGHTNESS,
+    LIGHT_RGB,
+    OPT_FINISH,
+    OPT_PREPARE,
+    STEP_COVER,
+    STEP_COVER_POSITION,
+    STEP_LIGHTS,
+    STEP_OFF,
+    STEP_ON,
     SUBENTRY_PARTNER,
     SUBENTRY_PLACE,
 )
@@ -116,7 +119,7 @@ async def _check_recorder(hass: HomeAssistant, url: str, key: str) -> str | None
 # ------------------------------------------------------------------ Verbindung
 class SpielSaisonConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
-    MINOR_VERSION = 4
+    MINOR_VERSION = 5
 
     async def _connection_step(
         self, step_id: str, user_input: dict[str, Any] | None, current: Mapping[str, Any]
@@ -169,6 +172,11 @@ class SpielSaisonConfigFlow(ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema({vol.Required(CONF_RECORDER_KEY): _SECRET}),
             errors=errors,
         )
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
+        return SeasonOptionsFlow()
 
     @classmethod
     @callback
@@ -295,16 +303,10 @@ class PartnerSubentryFlow(ConfigSubentryFlow):
 
 # ------------------------------------------------------------------------ Orte
 class PlaceSubentryFlow(ConfigSubentryFlow):
-    """Ort anlegen oder bearbeiten.
-
-    Schritte: Grundlagen, PTZ-Position je Kamera, Saison vorbereiten, Beginn, Ende, Saison beenden.
-    „Saison vorbereiten“ und „Saison beenden“ gelten nur für die beiden Tasten gleichen Namens.
-    """
+    """Ort anlegen oder bearbeiten: Grundlagen, PTZ-Position je Kamera, Beginn, Ende."""
 
     _basics: dict[str, Any]
-    _prepare: dict[str, Any]
     _begin: dict[str, Any]
-    _end: dict[str, Any]
     _own: str | None = None
 
     @property
@@ -356,7 +358,7 @@ class PlaceSubentryFlow(ConfigSubentryFlow):
                 }
                 if any(ctronics_presets(self.hass, eid) is not None for eid in cams):
                     return await self._step_ptz(None)
-                return await self._step_prepare(None)
+                return await self._step_begin(None)
         schema = vol.Schema(
             {
                 vol.Required(CONF_NAME): _TEXT,
@@ -396,7 +398,7 @@ class PlaceSubentryFlow(ConfigSubentryFlow):
             self._basics[CONF_CAM_PRESETS] = {
                 eid: int(user_input[field]) for field, eid in fields.items() if int(user_input.get(field) or 0)
             }
-            return await self._step_prepare(None)
+            return await self._step_begin(None)
         schema = vol.Schema(
             {
                 vol.Optional(field): selector.SelectSelector(
@@ -415,31 +417,7 @@ class PlaceSubentryFlow(ConfigSubentryFlow):
             last_step=False,  # Schaltfläche: Weiter
         )
 
-    # ------------------------------------------------ Schritt 3: Saison vorbereiten
-    async def _step_prepare(self, user_input: dict[str, Any] | None) -> SubentryFlowResult:
-        """Nur für die Taste „Saison vorbereiten“."""
-        if user_input is not None:
-            self._prepare = {CONF_PREPARE_ON: user_input[CONF_PREPARE_ON]} if user_input.get(CONF_PREPARE_ON) else {}
-            if user_input.get(CONF_COVER):
-                self._prepare[CONF_COVER] = user_input[CONF_COVER]
-                self._prepare[CONF_COVER_POSITION] = int(user_input.get(CONF_COVER_POSITION, DEFAULT_COVER_POSITION))
-            return await self._step_begin(None)
-        schema = vol.Schema(
-            {
-                vol.Optional(CONF_PREPARE_ON): _TARGET,
-                vol.Optional(CONF_COVER): selector.EntitySelector(selector.EntitySelectorConfig(domain="cover")),
-                vol.Optional(CONF_COVER_POSITION): _num(0, 100, "%"),
-            }
-        )
-        return self.async_show_form(
-            step_id=f"{self._prefix}_prepare",
-            data_schema=self.add_suggested_values_to_schema(
-                schema, {CONF_COVER_POSITION: DEFAULT_COVER_POSITION, **self._current}
-            ),
-            last_step=False,  # Schaltfläche: Weiter
-        )
-
-    # -------------------------------------------------------------- Schritt 4: Beginn
+    # -------------------------------------------------------------- Schritt 3
     async def _step_begin(self, user_input: dict[str, Any] | None) -> SubentryFlowResult:
         if user_input is not None:
             self._begin = {key: user_input[key] for key in (CONF_START_OFF, CONF_START_ON) if user_input.get(key)}
@@ -451,29 +429,14 @@ class PlaceSubentryFlow(ConfigSubentryFlow):
             last_step=False,  # Schaltfläche: Weiter
         )
 
-    # -------------------------------------------------------------- Schritt 5: Ende
+    # -------------------------------------------------------------- Schritt 4
     async def _step_end(self, user_input: dict[str, Any] | None) -> SubentryFlowResult:
         if user_input is not None:
-            self._end = {key: user_input[key] for key in (CONF_END_OFF, CONF_END_ON) if user_input.get(key)}
-            return await self._step_finish(None)
-        schema = vol.Schema({vol.Optional(CONF_END_OFF): _TARGET, vol.Optional(CONF_END_ON): _TARGET})
-        return self.async_show_form(
-            step_id=f"{self._prefix}_end",
-            data_schema=self.add_suggested_values_to_schema(schema, self._current),
-            last_step=False,  # Schaltfläche: Weiter
-        )
-
-    # ------------------------------------------------- Schritt 6: Saison beenden
-    async def _step_finish(self, user_input: dict[str, Any] | None) -> SubentryFlowResult:
-        """Nur für die Taste „Saison beenden“."""
-        if user_input is not None:
-            finish = {key: user_input[key] for key in (CONF_FINISH_OFF, CONF_FINISH_ON) if user_input.get(key)}
-            if user_input.get(CONF_FINISH_COVER):
-                finish[CONF_FINISH_COVER] = user_input[CONF_FINISH_COVER]
-                finish[CONF_FINISH_COVER_POSITION] = int(
-                    user_input.get(CONF_FINISH_COVER_POSITION, DEFAULT_FINISH_COVER_POSITION)
-                )
-            data = {**self._basics, **self._prepare, **self._begin, **self._end, **finish}
+            data = {
+                **self._basics,
+                **self._begin,
+                **{k: user_input[k] for k in (CONF_END_OFF, CONF_END_ON) if user_input.get(k)},
+            }
             title = logic.place_title(data[CONF_NAME], self._partners()[data[CONF_PARTNER]])
             unique_id = f"{data[CONF_PARTNER]}:{logic.norm(data[CONF_NAME])}"
             if self._own is None:
@@ -481,19 +444,10 @@ class PlaceSubentryFlow(ConfigSubentryFlow):
             return self.async_update_and_abort(
                 self._get_entry(), self._get_reconfigure_subentry(), title=title, unique_id=unique_id, data=data
             )
-        schema = vol.Schema(
-            {
-                vol.Optional(CONF_FINISH_OFF): _TARGET,
-                vol.Optional(CONF_FINISH_ON): _TARGET,
-                vol.Optional(CONF_FINISH_COVER): selector.EntitySelector(selector.EntitySelectorConfig(domain="cover")),
-                vol.Optional(CONF_FINISH_COVER_POSITION): _num(0, 100, "%"),
-            }
-        )
+        schema = vol.Schema({vol.Optional(CONF_END_OFF): _TARGET, vol.Optional(CONF_END_ON): _TARGET})
         return self.async_show_form(
-            step_id=f"{self._prefix}_finish",
-            data_schema=self.add_suggested_values_to_schema(
-                schema, {CONF_FINISH_COVER_POSITION: DEFAULT_FINISH_COVER_POSITION, **self._current}
-            ),
+            step_id=f"{self._prefix}_end",
+            data_schema=self.add_suggested_values_to_schema(schema, self._current),
             last_step=True,  # Schaltfläche: Ort speichern
         )
 
@@ -512,12 +466,6 @@ class PlaceSubentryFlow(ConfigSubentryFlow):
     async def async_step_reconfigure_ptz(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
         return await self._step_ptz(user_input)
 
-    async def async_step_user_prepare(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
-        return await self._step_prepare(user_input)
-
-    async def async_step_reconfigure_prepare(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
-        return await self._step_prepare(user_input)
-
     async def async_step_user_begin(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
         return await self._step_begin(user_input)
 
@@ -530,8 +478,104 @@ class PlaceSubentryFlow(ConfigSubentryFlow):
     async def async_step_reconfigure_end(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
         return await self._step_end(user_input)
 
-    async def async_step_user_finish(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
-        return await self._step_finish(user_input)
 
-    async def async_step_reconfigure_finish(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
-        return await self._step_finish(user_input)
+# --------------------------------------------- Saison vorbereiten und Saison beenden
+class SeasonOptionsFlow(OptionsFlow):
+    """„Konfigurieren“ der Integration: was „Saison vorbereiten“ und „Saison beenden“ schalten.
+
+    Beides gilt für alle Spielpartner und Orte und nur für die beiden Tasten (und Dienste), nicht für die Aufnahme.
+    Seiten: Saison vorbereiten, deren Lichter, Saison beenden, deren Lichter. Die Seiten der Lichter gibt es nur,
+    wenn Lichter gewählt sind.
+    """
+
+    def __init__(self) -> None:
+        self._options: dict[str, dict[str, Any]] = {}
+
+    def _saved(self, section: str) -> Mapping[str, Any]:
+        return self.config_entry.options.get(section) or {}
+
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        return await self._step_section(OPT_PREPARE, user_input)
+
+    async def async_step_prepare_lights(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        return await self._step_lights(OPT_PREPARE, user_input)
+
+    async def async_step_finish(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        return await self._step_section(OPT_FINISH, user_input)
+
+    async def async_step_finish_lights(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        return await self._step_lights(OPT_FINISH, user_input)
+
+    async def _step_section(self, section: str, user_input: dict[str, Any] | None) -> ConfigFlowResult:
+        prepare = section == OPT_PREPARE
+        default_position = DEFAULT_COVER_POSITION if prepare else DEFAULT_FINISH_COVER_POSITION
+        saved = self._saved(section)
+        if user_input is not None:
+            data: dict[str, Any] = {key: user_input[key] for key in (STEP_OFF, STEP_ON) if user_input.get(key)}
+            if user_input.get(STEP_COVER):
+                data[STEP_COVER] = user_input[STEP_COVER]
+                data[STEP_COVER_POSITION] = int(user_input.get(STEP_COVER_POSITION, default_position))
+            old = saved.get(STEP_LIGHTS) or {}
+            lights = list(user_input.get(STEP_LIGHTS) or [])
+            if lights:  # die bisherigen Farben bleiben, bis du sie auf der nächsten Seite änderst
+                data[STEP_LIGHTS] = {entity_id: dict(old.get(entity_id) or {}) for entity_id in lights}
+            self._options[section] = data
+            return await (self._step_lights(section, None) if lights else self._next(section))
+        schema = vol.Schema(
+            {
+                vol.Optional(STEP_OFF): _TARGET,
+                vol.Optional(STEP_ON): _TARGET,
+                vol.Optional(STEP_LIGHTS): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="light", multiple=True)
+                ),
+                vol.Optional(STEP_COVER): selector.EntitySelector(selector.EntitySelectorConfig(domain="cover")),
+                vol.Optional(STEP_COVER_POSITION): _num(0, 100, "%"),
+            }
+        )
+        suggested = {STEP_COVER_POSITION: default_position, **saved, STEP_LIGHTS: list(saved.get(STEP_LIGHTS) or {})}
+        return self.async_show_form(
+            step_id="init" if prepare else "finish",
+            data_schema=self.add_suggested_values_to_schema(schema, suggested),
+            last_step=False if prepare else None,  # „Weiter“, solange noch eine Seite folgt
+        )
+
+    async def _step_lights(self, section: str, user_input: dict[str, Any] | None) -> ConfigFlowResult:
+        """Je Licht ein Farbwähler und die Helligkeit. Leer lassen heißt: das Licht geht so an, wie es zuletzt war."""
+        prepare = section == OPT_PREPARE
+        lights = self._options[section][STEP_LIGHTS]
+        german = self.hass.config.language.startswith("de")
+        color_word, brightness_word = ("Farbe", "Helligkeit") if german else ("Colour", "Brightness")
+        ids = list(lights)
+        names = logic.unique_names(
+            [entity_title(self.hass, entity_id) for entity_id in ids], [entity_id.split(".", 1)[1] for entity_id in ids]
+        )
+        fields: dict[str, tuple[str, str]] = {}  # Beschriftung des Feldes -> (Licht, Farbe oder Helligkeit)
+        for name, entity_id in zip(names, ids, strict=True):
+            fields[f"{name} {color_word}"] = (entity_id, LIGHT_RGB)
+            fields[f"{name} {brightness_word}"] = (entity_id, LIGHT_BRIGHTNESS)
+        if user_input is not None:
+            for label, (entity_id, kind) in fields.items():
+                if value := user_input.get(label):
+                    lights[entity_id][kind] = [int(part) for part in value] if kind == LIGHT_RGB else int(value)
+                else:
+                    lights[entity_id].pop(kind, None)
+            return await self._next(section)
+        schema = vol.Schema(
+            {
+                vol.Optional(label): selector.ColorRGBSelector() if kind == LIGHT_RGB else _num(1, 100, "%")
+                for label, (_entity_id, kind) in fields.items()
+            }
+        )
+        suggested = {
+            label: lights[entity_id][kind] for label, (entity_id, kind) in fields.items() if kind in lights[entity_id]
+        }
+        return self.async_show_form(
+            step_id=f"{section}_lights",
+            data_schema=self.add_suggested_values_to_schema(schema, suggested),
+            last_step=False if prepare else None,
+        )
+
+    async def _next(self, section: str) -> ConfigFlowResult:
+        if section == OPT_PREPARE:
+            return await self.async_step_finish()
+        return self.async_create_entry(data={**self.config_entry.options, **self._options})

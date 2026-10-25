@@ -115,7 +115,7 @@ def bad_key() -> type[FakeRecorder]:
 
 @pytest.fixture
 def service_calls(hass: HomeAssistant) -> list[ServiceCall]:
-    """Fängt homeassistant.turn_on/turn_off, notify.send_message, cover.set_cover_position und ctronics_cam ab."""
+    """Fängt homeassistant.turn_on/turn_off, light.turn_on, notify.send_message, cover und ctronics_cam ab."""
     calls: list[ServiceCall] = []
 
     async def record(call: ServiceCall) -> None:
@@ -124,6 +124,7 @@ def service_calls(hass: HomeAssistant) -> list[ServiceCall]:
     for domain, service in (
         ("homeassistant", "turn_on"),
         ("homeassistant", "turn_off"),
+        ("light", "turn_on"),
         ("notify", "send_message"),
         ("cover", "set_cover_position"),
         ("ctronics_cam", "ptz_goto_preset"),
@@ -176,13 +177,15 @@ async def setup_entry(
     partners: list[dict[str, Any]] | None = None,
     places: list[dict[str, Any]] | None = None,
     *,
-    minor_version: int = 4,
+    minor_version: int = 5,
+    options: dict[str, Any] | None = None,
     **data: Any,
 ) -> MockConfigEntry:
     """Richtet Spiel Saison ein.
 
     Subentry-IDs: 'p_<Name>' für Spielpartner, 'o_<Name>' für Orte (bei gleichem Namen 'o_<Name>_<Spielpartner>').
     Die gemerkten Vorlieben für neue Spielpartner gehen über `like_catalog` und `treat_catalog`.
+    `options` sind die Einstellungen von „Saison vorbereiten“ (`prepare`) und „Saison beenden“ (`finish`).
     """
     place_ids: list[str] = []
     for place in places or []:
@@ -211,6 +214,7 @@ async def setup_entry(
         domain=DOMAIN,
         title="Spiel Saison",
         data={"recorder_url": URL, "recorder_key": KEY, "base_folder": "Spielen", **data},
+        options=options or {},
         subentries_data=subentries,
         minor_version=minor_version,
     )

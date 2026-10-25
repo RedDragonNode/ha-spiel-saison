@@ -69,27 +69,37 @@ Fügst du beim Bearbeiten des Spielpartners eine Vorliebe hinzu, tauchen ihre En
 
 ### Orte
 
-*Spiel Saison → Ort hinzufügen* (Bett, Schaukel …). **Jeder Ort gehört zu einem Spielpartner** und bringt die Kameras mit, die dort aufnehmen. Ein Name darf bei mehreren Spielpartnern vorkommen („Bett“ bei Frank und „Bett“ bei Tobias sind zwei Orte). Der Dialog hat sechs Schritte (fünf, wenn der Ort keine Ctronics-Kamera hat), alles außer Name, Spielpartner und Kameras ist optional:
+*Spiel Saison → Ort hinzufügen* (Bett, Schaukel …). **Jeder Ort gehört zu einem Spielpartner** und bringt die Kameras mit, die dort aufnehmen. Ein Name darf bei mehreren Spielpartnern vorkommen („Bett“ bei Frank und „Bett“ bei Tobias sind zwei Orte). Der Dialog hat vier Schritte (drei, wenn der Ort keine Ctronics-Kamera hat), alles außer Name, Spielpartner und Kameras ist optional:
 
 | Schritt | Einstellung |
 |---|---|
 | 1 | **Name**, darunter der **Spielpartner** (Auswahlfeld), die **Kameras** des Ortes, **Vorlauf** (Standard 30 s) und **Pause** vor dem Ende-Schritt (Standard 10 s) |
 | 2 | **PTZ-Position je Kamera:** für jede ausgewählte Ctronics-Kamera ein eigenes Auswahlfeld mit ihren gespeicherten Positionen (oder „Nicht bewegen“). Der Schritt entfällt, wenn der Ort keine Ctronics-Kamera hat |
-| 3 | **Saison vorbereiten:** einschalten, dazu Rollo oder Winde auf eine Position fahren (davor beginnt die Saison des Tages, siehe unten) |
-| 4 | **Beginn:** erst ausschalten, dann einschalten |
-| 5 | **Ende:** erst ausschalten, dann einschalten |
-| 6 | **Saison beenden:** erst ausschalten, dann einschalten, danach Rollo oder Winde auf eine Position fahren (Standard: 0 %) |
+| 3 | **Beginn:** erst ausschalten, dann einschalten |
+| 4 | **Ende:** erst ausschalten, dann einschalten |
 
-Die Schritte **Saison vorbereiten** und **Saison beenden** gelten nur für die beiden Tasten gleichen Namens (und die gleichnamigen Dienste), **Beginn** und **Ende** nur für die Aufnahme.
 Die Namen der Positionen stammen aus der Integration Ctronics 4K Cam (dort unter *Optionen → Preset-Positionen*, eine Zeile `1: Schaukel` je Position). Hat eine Kamera noch keine Namen, stehen die Nummern 1 bis 64 zur Wahl. Dieselbe Kamera darf bei mehreren Orten stehen, sie nimmt aber nie bei zwei Spielpartnern zugleich auf. Wird eine Kamera-Entity umbenannt, ziehen die Orte mit.
 
 Die „Ziele“ wählst du wie in Automationen: Entities, Geräte, Bereiche oder **Labels**, auch Szenen und Skripte. Aufgerufen wird `homeassistant.turn_on` und `turn_off`.
 
-**Ablauf beim Starten:** Kameras auf ihre PTZ-Position fahren → Beginn „ausschalten“ → Beginn „einschalten“ → Ansage des Spielpartners → Vorlauf → Aufnahme. **Beim Beenden:** Aufnahme stoppen → Pause → Ende „ausschalten“ → Ende „einschalten“ → Ansage des Spielpartners. Schlägt ein Aufruf fehl, läuft der Rest trotzdem weiter, die Aufnahme ist wichtiger als das Licht (der Fehler steht im Protokoll und im Attribut `message` des Status-Sensors). Wird beim Vorlauf gestoppt, fällt die Aufnahme aus und der Ende-Schritt stellt alles zurück. Lehnt die App den Start ab (z. B. Speicher voll), läuft der Ende-Schritt ebenfalls. Ein Spielpartner ohne Ort kann nicht aufnehmen. **Saison beenden:** Ziele ausschalten → Ziele einschalten → Rollo oder Winde fahren; das geht nur, solange bei dem Spielpartner keine Aufnahme läuft.
+**Ablauf beim Starten:** Kameras auf ihre PTZ-Position fahren → Beginn „ausschalten“ → Beginn „einschalten“ → Ansage des Spielpartners → Vorlauf → Aufnahme. **Beim Beenden:** Aufnahme stoppen → Pause → Ende „ausschalten“ → Ende „einschalten“ → Ansage des Spielpartners. Schlägt ein Aufruf fehl, läuft der Rest trotzdem weiter, die Aufnahme ist wichtiger als das Licht (der Fehler steht im Protokoll und im Attribut `message` des Status-Sensors). Wird beim Vorlauf gestoppt, fällt die Aufnahme aus und der Ende-Schritt stellt alles zurück. Lehnt die App den Start ab (z. B. Speicher voll), läuft der Ende-Schritt ebenfalls. Ein Spielpartner ohne Ort kann nicht aufnehmen.
+
+### Saison vorbereiten und Saison beenden
+
+Die Tasten **Saison vorbereiten** und **Saison beenden** am Gerät jedes Spielpartners (und die gleichnamigen Dienste) haben eigene Einstellungen, die **von Anfang an da sind** und sich nicht löschen lassen: auf der Seite der Integration *Spiel Saison → Konfigurieren*. Sie gelten für alle Spielpartner und Orte gleich und nur für die beiden Tasten, nicht für die Aufnahme. Jede Taste hat eine Seite mit denselben Feldern:
+
+| Feld | Bedeutung |
+|---|---|
+| Ausschalten | Ziele (Entities, Geräte, Bereiche, Labels, auch Szenen und Skripte), die ausgeschaltet werden |
+| Einschalten | Ziele, die eingeschaltet werden |
+| Lichter | Lichter, die mit **Farbe** und **Helligkeit** eingeschaltet werden. Hast du Lichter gewählt, kommt eine Seite, auf der du für jedes Licht die Farbe mit dem Farbwähler und die Helligkeit in Prozent einstellst. Ein leeres Feld heißt: das Licht geht so an, wie es zuletzt war. Die Werte werden gespeichert |
+| Rollo, Winde | eine Entity vom Typ `cover`, die auf eine Position (0 bis 100 %) fährt. Standard: 50 % bei „Saison vorbereiten“, 0 % bei „Saison beenden“ |
+
+**Reihenfolge:** Ziele ausschalten → Ziele einschalten → Lichter einschalten → Rollo oder Winde fahren. **Saison beenden** geht nur, solange bei dem Spielpartner keine Aufnahme läuft, und meldet das Ereignis `spiel_saison_season_ended`. Beide Tasten laufen auch bei Spielpartnern ohne Ort.
 
 ### Saison
 
-Eine Saison ist ein Spieltag mit allen Aufnahmen darin, sie bekommt einen eigenen Ordner. **Pro Tag beginnt höchstens eine Saison:** Das **Saison vorbereiten** (Taste oder Dienst) beginnt die neue Saison, wenn es für heute noch keine gibt, **legt den Ordner der Saison im Zielordner an, falls es ihn dort noch nicht gibt**, und bereitet danach den Ort vor. Drückst du am selben Tag noch einmal auf Saison vorbereiten, bleibt die Saison, wie sie ist, der Ordner bleibt, und nur der Ort wird vorbereitet. Läuft bei dem Spielpartner gerade eine Aufnahme, ändert Saison vorbereiten die Saison nie. Ist die App nicht erreichbar, läuft Saison vorbereiten trotzdem, nur der Ordner fehlt dann noch (die Aufnahme legt ihn beim Start ohnehin an). Wer eine Saison von Hand beginnen will, nimmt den Dienst `new_season`, für den dieselbe Regel gilt (er antwortet mit `started: false`, wenn es für heute schon eine Saison gibt). Eine Taste dafür gibt es nicht. **Saison beenden** (Taste oder Dienst `end_season`) führt den Beenden-Schritt des Ortes aus und meldet das Ereignis `spiel_saison_season_ended`; Saison-Nummer, Zähler und Auswertung bleiben, wie sie sind, und Saison vorbereiten beginnt am nächsten Tag die nächste Saison. Ein neu angelegter Spielpartner startet mit Saison 1 am Tag des Anlegens, die nächste beginnt also frühestens am Folgetag.
+Eine Saison ist ein Spieltag mit allen Aufnahmen darin, sie bekommt einen eigenen Ordner. **Pro Tag beginnt höchstens eine Saison:** Das **Saison vorbereiten** (Taste oder Dienst) beginnt die neue Saison, wenn es für heute noch keine gibt, **legt den Ordner der Saison im Zielordner an, falls es ihn dort noch nicht gibt**, und führt danach die Einstellungen von „Saison vorbereiten“ aus. Drückst du am selben Tag noch einmal auf Saison vorbereiten, bleibt die Saison, wie sie ist, der Ordner bleibt, und nur die Einstellungen laufen noch einmal. Läuft bei dem Spielpartner gerade eine Aufnahme, ändert Saison vorbereiten die Saison nie. Ist die App nicht erreichbar, läuft Saison vorbereiten trotzdem, nur der Ordner fehlt dann noch (die Aufnahme legt ihn beim Start ohnehin an). Wer eine Saison von Hand beginnen will, nimmt den Dienst `new_season`, für den dieselbe Regel gilt (er antwortet mit `started: false`, wenn es für heute schon eine Saison gibt). Eine Taste dafür gibt es nicht. **Saison beenden** (Taste oder Dienst `end_season`) führt die Einstellungen von „Saison beenden“ aus und meldet das Ereignis `spiel_saison_season_ended`; Saison-Nummer, Zähler und Auswertung bleiben, wie sie sind, und Saison vorbereiten beginnt am nächsten Tag die nächste Saison. Ein neu angelegter Spielpartner startet mit Saison 1 am Tag des Anlegens, die nächste beginnt also frühestens am Folgetag.
 
 ## Entities
 
@@ -100,9 +110,9 @@ Am Gerät **Spielpartner …**:
 | Entity | Bedeutung |
 |---|---|
 | Schalter **Aufnahme** | an = Ablauf starten, aus = Aufnahme beenden |
-| Auswahl **Ort** | der Ort für Saison vorbereiten, Saison beenden und die Aufnahme. Es stehen nur die Orte dieses Spielpartners zur Wahl, die anderen erscheinen hier nicht (nur mit mindestens einem Ort) |
-| Taste **Saison vorbereiten** | beginnt die Saison des Tages (nur wenn es für heute noch keine gibt), legt den Ordner der Saison an, falls er fehlt, und führt den Schritt „Saison vorbereiten“ des gewählten Ortes aus |
-| Taste **Saison beenden** | führt den Schritt „Saison beenden“ des gewählten Ortes aus (nicht während einer Aufnahme) und meldet das Ereignis `spiel_saison_season_ended` |
+| Auswahl **Ort** | der Ort für die Aufnahme. Es stehen nur die Orte dieses Spielpartners zur Wahl, die anderen erscheinen hier nicht (nur mit mindestens einem Ort) |
+| Taste **Saison vorbereiten** | beginnt die Saison des Tages (nur wenn es für heute noch keine gibt), legt den Ordner der Saison an, falls er fehlt, und führt die Einstellungen von „Saison vorbereiten“ aus (*Konfigurieren*) |
+| Taste **Saison beenden** | führt die Einstellungen von „Saison beenden“ aus (*Konfigurieren*, nicht während einer Aufnahme) und meldet das Ereignis `spiel_saison_season_ended` |
 | Zahlen **Saison**, **Aufnahmen in Saison**, **Aufnahmen gesamt** | Zähler, von Hand änderbar |
 | Sensor **Status** | Bereit, Startet, Nimmt auf, Beendet. Attribute: Ort, Beginn, Aufnahmenummer, Kameras, `nickname`, `likes`, `treats` |
 | Sensoren **Aufnahmedauer in Saison / gesamt** (Stunden), **Längste Aufnahme in Saison** (Minuten), **Letzte Aufnahme** | Auswertung |
@@ -116,8 +126,8 @@ Die Zähler zählen eine Aufnahme, sobald die App sie gestartet hat.
 |---|---|
 | `spiel_saison.start_recording` | `partner`, optional `place` (ein Ort dieses Spielpartners, sonst der am Spielpartner gewählte) |
 | `spiel_saison.stop_recording` | `partner` |
-| `spiel_saison.prepare` | `partner`, optional `place`; beginnt auch die Saison des Tages und legt ihren Ordner an (Antwort: `season`, `new_season`, `folder`, `folder_created`) |
-| `spiel_saison.end_season` | `partner`, optional `place`; führt „Saison beenden“ des Ortes aus, nur ohne laufende Aufnahme (Antwort: `season`, `recordings`, `seconds`) |
+| `spiel_saison.prepare` | `partner`, optional `place` (füllt nur den Platzhalter `{ort}` der Ordner-Muster); beginnt auch die Saison des Tages und legt ihren Ordner an (Antwort: `season`, `new_season`, `folder`, `folder_created`) |
+| `spiel_saison.end_season` | `partner`; führt die Einstellungen von „Saison beenden“ aus, nur ohne laufende Aufnahme (Antwort: `season`, `recordings`, `seconds`) |
 | `spiel_saison.new_season` | `partner`; Saison +1, Zähler und Auswertung der Saison auf null, die alte Saison wird gespeichert. Einmal pro Tag und nur ohne laufende Aufnahme (Antwort: `started`, bei `false` mit `reason: already_today`) |
 
 `partner` und `place` sind die Namen, Groß- und Kleinschreibung und Sonderzeichen sind egal. Die Dienste liefern eine Antwort mit dem Ergebnis.
@@ -129,7 +139,7 @@ Ereignisse für eigene Automationen (zum Beispiel Benachrichtigungen):
 | `spiel_saison_recording_started` | `partner`, `nickname`, `partner_id`, `season`, `recording`, `place`, `folder`, `cams` |
 | `spiel_saison_recording_stopped` | `partner`, `nickname`, `partner_id`, `season`, `recording`, `place`, `reason` (`manual`, `cancelled`, vom Recorder gemeldeter Grund), `duration_s` |
 | `spiel_saison_season_started` | `partner`, `partner_id`, `season`, `start` |
-| `spiel_saison_season_ended` | `partner`, `nickname`, `partner_id`, `place`, `season`, `start`, `recordings`, `seconds` |
+| `spiel_saison_season_ended` | `partner`, `nickname`, `partner_id`, `season`, `start`, `recordings`, `seconds` |
 
 Beendet der Recorder eine Aufnahme von sich aus (zum Beispiel weil der Speicher voll ist), räumt die Integration auf, sendet das Stopp-Ereignis und legt unter *Einstellungen → System → Reparaturen* einen Hinweis an.
 
@@ -155,7 +165,7 @@ Die Tests der App brauchen `ffmpeg` und laufen sonst nur teilweise. In der CI la
 
 ## English
 
-**Spiel Saison** manages seasons, play partners and recordings in Home Assistant. Every play partner has fixed cameras, their own seasons and counters. One switch sets up a place (move the Ctronics cameras to a PTZ preset, switch lights and devices, make an announcement), waits for the lead time and starts a stream-copy recording through the app **Spiel Saison Recorder** (ffmpeg `-c copy`, no re-encoding). When you stop, it waits, puts everything back and updates the statistics. Every place belongs to a play partner and brings its cameras, with a PTZ position per Ctronics camera taken from the camera's stored positions; the announcement belongs to the play partner, together with an optional nickname (a placeholder for the announcements) and two lists of preferences that you type in directly; every preference gets a diagnostic sensor on the device, and preferences for working also get an “included” switch and a counter. The buttons **Prepare season** and **End season** run their own settings of the place (not used by the recording); preparing also begins the season of the day, at most one season begins per day. Folder and file names come from patterns with placeholders for partner, season, recording number and camera name. The integration offers services and events for your own automations. Install the integration through HACS and add this repository to the App store for the recorder. The texts in the UI are available in German and English.
+**Spiel Saison** manages seasons, play partners and recordings in Home Assistant. Every play partner has fixed cameras, their own seasons and counters. One switch sets up a place (move the Ctronics cameras to a PTZ preset, switch lights and devices, make an announcement), waits for the lead time and starts a stream-copy recording through the app **Spiel Saison Recorder** (ffmpeg `-c copy`, no re-encoding). When you stop, it waits, puts everything back and updates the statistics. Every place belongs to a play partner and brings its cameras, with a PTZ position per Ctronics camera taken from the camera's stored positions; the announcement belongs to the play partner, together with an optional nickname (a placeholder for the announcements) and two lists of preferences that you type in directly; every preference gets a diagnostic sensor on the device, and preferences for working also get an “included” switch and a counter. The buttons **Prepare season** and **End season** have their own settings under *Configure* of the integration (the same for all places, not used by the recording): targets to turn off and on, lights with a colour and brightness you set, and a cover or winch position; preparing also begins the season of the day, at most one season begins per day. Folder and file names come from patterns with placeholders for partner, season, recording number and camera name. The integration offers services and events for your own automations. Install the integration through HACS and add this repository to the App store for the recorder. The texts in the UI are available in German and English.
 
 ## Lizenz
 
