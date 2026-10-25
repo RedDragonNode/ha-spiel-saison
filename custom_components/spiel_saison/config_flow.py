@@ -34,6 +34,7 @@ from .const import (
     CONF_END_SECONDS,
     CONF_FILE_PATTERN,
     CONF_LEAD_SECONDS,
+    CONF_LIKE_CATALOG,
     CONF_LIKES,
     CONF_NICKNAME,
     CONF_NUMBER,
@@ -45,6 +46,7 @@ from .const import (
     CONF_SEASON_PATTERN,
     CONF_START_OFF,
     CONF_START_ON,
+    CONF_TREAT_CATALOG,
     CONF_TREATS,
     DEFAULT_BASE_FOLDER,
     DEFAULT_COVER_POSITION,
@@ -55,10 +57,8 @@ from .const import (
     DEFAULT_RECORDER_URL,
     DEFAULT_SEASON_PATTERN,
     DOMAIN,
-    SUBENTRY_LIKE,
     SUBENTRY_PARTNER,
     SUBENTRY_PLACE,
-    SUBENTRY_TREAT,
 )
 from .recorder_client import RecorderAuthError, RecorderClient, RecorderError
 
@@ -111,7 +111,7 @@ async def _check_recorder(hass: HomeAssistant, url: str, key: str) -> str | None
 # ------------------------------------------------------------------ Verbindung
 class SpielSaisonConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
-    MINOR_VERSION = 3
+    MINOR_VERSION = 4
 
     async def _connection_step(
         self, step_id: str, user_input: dict[str, Any] | None, current: Mapping[str, Any]
@@ -168,12 +168,7 @@ class SpielSaisonConfigFlow(ConfigFlow, domain=DOMAIN):
     @classmethod
     @callback
     def async_get_supported_subentry_types(cls, config_entry: ConfigEntry) -> dict[str, type[ConfigSubentryFlow]]:
-        return {
-            SUBENTRY_PARTNER: PartnerSubentryFlow,
-            SUBENTRY_PLACE: PlaceSubentryFlow,
-            SUBENTRY_LIKE: LikeSubentryFlow,
-            SUBENTRY_TREAT: TreatSubentryFlow,
-        }
+        return {SUBENTRY_PARTNER: PartnerSubentryFlow, SUBENTRY_PLACE: PlaceSubentryFlow}
 
 
 # ----------------------------------------------------------------- Spielpartner
@@ -193,15 +188,35 @@ class PartnerSubentryFlow(ConfigSubentryFlow):
         taken = {int(d.get(CONF_NUMBER) or 0) for d in self._others()}
         return next(n for n in range(1, 100) if n not in taken)
 
-    def _catalog(self, kind: str) -> dict[str, str]:
-        """Die angelegten Vorlieben einer Art (Subentry-ID -> Name)."""
-        return {sid: s.data[CONF_NAME] for sid, s in self._get_entry().subentries.items() if s.subentry_type == kind}
+    def _catalog(self, catalog_key: str, partner_key: str) -> list[str]:
+        """Alle bekannten Vorlieben einer Art: die gemerkten und die der Spielpartner, nach Namen sortiert."""
+        entry = self._get_entry()
+        names = list(entry.data.get(catalog_key) or [])
+        for sub in entry.subentries.values():
+            if sub.subentry_type == SUBENTRY_PARTNER:
+                names += sub.data.get(partner_key) or []
+        return sorted(logic.clean_names(names), key=str.casefold)
+
+    def _remember(self, data: Mapping[str, Any]) -> None:
+        """Neue Vorlieben für die nächsten Spielpartner merken (im Eintrag, ohne eigene Einträge dafür)."""
+        entry = self._get_entry()
+        update: dict[str, list[str]] = {}
+        for catalog_key, partner_key in ((CONF_LIKE_CATALOG, CONF_LIKES), (CONF_TREAT_CATALOG, CONF_TREATS)):
+            stored = list(entry.data.get(catalog_key) or [])
+            merged = logic.clean_names([*stored, *data[partner_key]], stored)
+            if merged != stored:
+                update[catalog_key] = merged
+        if update:
+            self.hass.config_entries.async_update_entry(entry, data={**entry.data, **update})
 
     async def _step(
         self, step_id: str, user_input: dict[str, Any] | None, current: Mapping[str, Any]
     ) -> SubentryFlowResult:
         errors: dict[str, str] = {}
-        likes, treats = self._catalog(SUBENTRY_LIKE), self._catalog(SUBENTRY_TREAT)
+        catalogs = {
+            CONF_LIKES: self._catalog(CONF_LIKE_CATALOG, CONF_LIKES),
+            CONF_TREATS: self._catalog(CONF_TREAT_CATALOG, CONF_TREATS),
+        }
         if user_input is not None:
             name = user_input[CONF_NAME].strip()
             number = int(user_input[CONF_NUMBER])
@@ -215,14 +230,15 @@ class PartnerSubentryFlow(ConfigSubentryFlow):
                     CONF_NAME: name,
                     CONF_NUMBER: number,
                     CONF_NICKNAME: (user_input.get(CONF_NICKNAME) or "").strip(),
-                    CONF_LIKES: [i for i in user_input.get(CONF_LIKES) or [] if i in likes],
-                    CONF_TREATS: [i for i in user_input.get(CONF_TREATS) or [] if i in treats],
+                    CONF_LIKES: logic.clean_names(user_input.get(CONF_LIKES) or [], catalogs[CONF_LIKES]),
+                    CONF_TREATS: logic.clean_names(user_input.get(CONF_TREATS) or [], catalogs[CONF_TREATS]),
                     CONF_ANNOUNCE_START: (user_input.get(CONF_ANNOUNCE_START) or "").strip(),
                     CONF_ANNOUNCE_END: (user_input.get(CONF_ANNOUNCE_END) or "").strip(),
                 }
                 if user_input.get(CONF_ANNOUNCE_ENTITY):
                     data[CONF_ANNOUNCE_ENTITY] = user_input[CONF_ANNOUNCE_ENTITY]
                 unique_id = logic.norm(name)
+                self._remember(data)
                 if self._own is None:
                     return self.async_create_entry(title=name, data=data, unique_id=unique_id)
                 entry = self._get_entry()
@@ -240,27 +256,22 @@ class PartnerSubentryFlow(ConfigSubentryFlow):
             vol.Required(CONF_NUMBER): _num(1, 99),
             vol.Optional(CONF_NICKNAME): _TEXT,
         }
-        for key, catalog in ((CONF_LIKES, likes), (CONF_TREATS, treats)):
-            if catalog:  # ohne angelegte Vorlieben gäbe es nichts zu wählen
-                fields[vol.Optional(key)] = selector.SelectSelector(
-                    selector.SelectSelectorConfig(
-                        options=[selector.SelectOptionDict(value=sid, label=label) for sid, label in catalog.items()],
-                        multiple=True,
-                        mode=selector.SelectSelectorMode.DROPDOWN,
-                    )
+        for key, catalog in catalogs.items():  # eigene Eingaben sind erlaubt und stehen danach bei jedem zur Wahl
+            fields[vol.Optional(key)] = selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[selector.SelectOptionDict(value=name, label=name) for name in catalog],
+                    multiple=True,
+                    custom_value=True,
+                    mode=selector.SelectSelectorMode.DROPDOWN,
                 )
+            )
         fields[vol.Optional(CONF_ANNOUNCE_ENTITY)] = selector.EntitySelector(
             selector.EntitySelectorConfig(domain="notify")
         )
         fields[vol.Optional(CONF_ANNOUNCE_START)] = _TEXT
         fields[vol.Optional(CONF_ANNOUNCE_END)] = _TEXT
         schema = vol.Schema(fields)
-        suggested = user_input or {
-            CONF_NUMBER: self._next_number(),
-            **current,
-            CONF_LIKES: [i for i in current.get(CONF_LIKES) or [] if i in likes],  # gelöschte Einträge nicht vorwählen
-            CONF_TREATS: [i for i in current.get(CONF_TREATS) or [] if i in treats],
-        }
+        suggested = user_input or {CONF_NUMBER: self._next_number(), **current}
         return self.async_show_form(
             step_id=step_id,
             data_schema=self.add_suggested_values_to_schema(schema, suggested),
@@ -275,69 +286,6 @@ class PartnerSubentryFlow(ConfigSubentryFlow):
         sub = self._get_reconfigure_subentry()
         self._own = sub.subentry_id
         return await self._step("reconfigure", user_input, dict(sub.data))
-
-
-# ------------------------------------------------------------------- Vorlieben
-class _PreferenceSubentryFlow(ConfigSubentryFlow):
-    """Eine Vorliebe anlegen oder umbenennen. Die Spielpartner wählen später aus diesen Einträgen."""
-
-    _kind = ""
-    _own: str | None = None
-
-    def _taken(self) -> set[str]:
-        return {
-            logic.norm(s.data[CONF_NAME])
-            for sid, s in self._get_entry().subentries.items()
-            if s.subentry_type == self._kind and sid != self._own
-        }
-
-    async def _step(
-        self, step_id: str, user_input: dict[str, Any] | None, current: Mapping[str, Any]
-    ) -> SubentryFlowResult:
-        errors: dict[str, str] = {}
-        if user_input is not None:
-            name = user_input[CONF_NAME].strip()
-            if not name or logic.norm(name) in self._taken():
-                errors[CONF_NAME] = "name_taken"
-            else:
-                unique_id = f"{self._kind}:{logic.norm(name)}"  # die IDs aller Untereinträge müssen verschieden sein
-                if self._own is None:
-                    return self.async_create_entry(title=name, data={CONF_NAME: name}, unique_id=unique_id)
-                return self.async_update_and_abort(
-                    self._get_entry(),
-                    self._get_reconfigure_subentry(),
-                    title=name,
-                    unique_id=unique_id,
-                    data={CONF_NAME: name},
-                )
-        return self.async_show_form(
-            step_id=step_id,
-            data_schema=self.add_suggested_values_to_schema(
-                vol.Schema({vol.Required(CONF_NAME): _TEXT}), user_input or current
-            ),
-            errors=errors,
-        )
-
-    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
-        self._own = None
-        return await self._step("user", user_input, {})
-
-    async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
-        sub = self._get_reconfigure_subentry()
-        self._own = sub.subentry_id
-        return await self._step("reconfigure", user_input, dict(sub.data))
-
-
-class LikeSubentryFlow(_PreferenceSubentryFlow):
-    """Eigene Vorliebe."""
-
-    _kind = SUBENTRY_LIKE
-
-
-class TreatSubentryFlow(_PreferenceSubentryFlow):
-    """Vorliebe zum Bearbeiten seines Partners."""
-
-    _kind = SUBENTRY_TREAT
 
 
 # ------------------------------------------------------------------------ Orte

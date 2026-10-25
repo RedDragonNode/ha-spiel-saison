@@ -10,7 +10,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import SpielSaisonConfigEntry
 from .const import PHASE_RECORDING, PHASE_STARTING
-from .entity import PartnerEntity
+from .entity import PartnerEntity, PreferenceEntity
 from .manager import PartnerCfg, SpielSaisonManager
 
 
@@ -20,6 +20,8 @@ async def async_setup_entry(
     m = entry.runtime_data
     for sid, partner in m.partners.items():
         async_add_entities([RecordingSwitch(m, partner)], config_subentry_id=sid)
+        for kind, name, _key in m.preferences(partner):
+            async_add_entities([PreferenceSwitch(m, partner, kind, name)], config_subentry_id=sid)
 
 
 class RecordingSwitch(PartnerEntity, SwitchEntity):
@@ -45,3 +47,23 @@ class RecordingSwitch(PartnerEntity, SwitchEntity):
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         await self.manager.async_stop_recording(self.sid)
+
+
+class PreferenceSwitch(PreferenceEntity, SwitchEntity):
+    """„Dabei“: Beim Start einer Aufnahme zählt jede eingeschaltete Vorliebe +1. Der Schalter bleibt, wie er ist."""
+
+    _attr_translation_key = "preference_active"
+    _attr_icon = "mdi:check-circle-outline"
+
+    def __init__(self, m: SpielSaisonManager, partner: PartnerCfg, kind: str, name: str) -> None:
+        super().__init__(m, partner, kind, name, "active")
+
+    @property
+    def is_on(self) -> bool:
+        return self.pref_key in self.manager.states[self.sid].pref_on
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        await self.manager.async_set_preference(self.sid, self.pref_key, on=True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self.manager.async_set_preference(self.sid, self.pref_key, on=False)

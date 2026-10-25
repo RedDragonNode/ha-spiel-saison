@@ -192,93 +192,66 @@ async def test_partner_announcement_is_optional(hass: HomeAssistant) -> None:
     }
 
 
-async def test_partner_flow_has_nickname_and_the_two_preference_dropdowns(hass: HomeAssistant) -> None:
-    entry = await setup_entry(hass, likes=["Seil", "Schal"], treats=["Feder"])
+async def test_partner_flow_has_nickname_and_two_free_preference_fields(hass: HomeAssistant) -> None:
+    entry = await setup_entry(
+        hass,
+        [make_partner("Frank", 1, likes=["Zebra", "Apfel"])],
+        like_catalog=["Birne"],
+        treat_catalog=["Feder"],
+    )
 
     flow = await _start_sub(hass, entry, "partner")
 
     fields = {str(k): v for k, v in flow["data_schema"].schema.items()}
     assert list(fields)[:5] == ["name", "number", "nickname", "likes", "treats"]
-    assert [(o["value"], o["label"]) for o in fields["likes"].config["options"]] == [
-        ("l_Seil", "Seil"),
-        ("l_Schal", "Schal"),
-    ]
-    assert [(o["value"], o["label"]) for o in fields["treats"].config["options"]] == [("t_Feder", "Feder")]
-    assert fields["likes"].config["multiple"] is True
+    assert fields["likes"].config["multiple"] is True and fields["likes"].config["custom_value"] is True
+    assert [o["value"] for o in fields["likes"].config["options"]] == [
+        "Apfel",
+        "Birne",
+        "Zebra",
+    ]  # gemerkte und die von Frank
+    assert [o["value"] for o in fields["treats"].config["options"]] == ["Feder"]
 
     result = await hass.config_entries.subentries.async_configure(
         flow["flow_id"],
-        {
-            "name": "Tobias",
-            "number": 2,
-            "nickname": " Tobi ",
-            "likes": ["l_Seil"],
-            "treats": ["t_Feder"],
-        },
+        {"name": "Tobias", "number": 2, "nickname": " Tobi ", "likes": ["Birne", " Neu "], "treats": []},
     )
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    sub = next(s for s in entry.subentries.values() if s.subentry_type == "partner")
+    sub = next(s for s in entry.subentries.values() if s.title == "Tobias")
     assert sub.data["nickname"] == "Tobi"
-    assert sub.data["likes"] == ["l_Seil"]
-    assert sub.data["treats"] == ["t_Feder"]
+    assert sub.data["likes"] == ["Birne", "Neu"]
+    assert sub.data["treats"] == []
 
 
-async def test_partner_flow_hides_the_preference_dropdowns_until_there_are_preferences(hass: HomeAssistant) -> None:
-    entry = await setup_entry(hass)
+async def test_new_preferences_are_remembered_for_the_next_partner(hass: HomeAssistant) -> None:
+    entry = await setup_entry(hass, like_catalog=["Seil"])
+    flow = await _start_sub(hass, entry, "partner")
+    await hass.config_entries.subentries.async_configure(
+        flow["flow_id"],
+        {"name": "Tobias", "number": 1, "likes": ["Seil", "Schal"], "treats": ["Feder"]},
+    )
+    await hass.async_block_till_done()
+    assert entry.data["like_catalog"] == ["Seil", "Schal"]
+    assert entry.data["treat_catalog"] == ["Feder"]
 
+    flow = await _start_sub(hass, entry, "partner")  # ein weiterer Spielpartner sieht sie
+
+    fields = {str(k): v for k, v in flow["data_schema"].schema.items()}
+    assert [o["value"] for o in fields["likes"].config["options"]] == ["Schal", "Seil"]
+    assert [o["value"] for o in fields["treats"].config["options"]] == ["Feder"]
+
+
+async def test_preference_names_are_cleaned_and_use_the_known_spelling(hass: HomeAssistant) -> None:
+    entry = await setup_entry(hass, like_catalog=["Seil"])
     flow = await _start_sub(hass, entry, "partner")
 
-    fields = [str(k) for k in flow["data_schema"].schema]
-    assert "nickname" in fields and "likes" not in fields and "treats" not in fields
-
-
-async def test_partner_reconfigure_does_not_preselect_deleted_preferences(hass: HomeAssistant) -> None:
-    entry = await setup_entry(
-        hass, [make_partner("Frank", 1, likes=["l_Seil", "l_Weg"], treats=[])], likes=["Seil"], treats=["Feder"]
+    await hass.config_entries.subentries.async_configure(
+        flow["flow_id"], {"name": "Tobias", "number": 1, "likes": ["seil", " SEIL ", "!!!", "Schal", "schal"]}
     )
 
-    flow = await _start_sub(hass, entry, "partner", source="reconfigure", subentry_id="p_Frank")
-
-    assert _shown(flow)["likes"] == ["l_Seil"]
-
-
-# -------------------------------------------------------------------- Vorlieben
-async def test_preference_flows_create_one_entry_per_kind(hass: HomeAssistant) -> None:
-    entry = await setup_entry(hass)
-
-    for kind in ("like", "treat"):
-        flow = await _start_sub(hass, entry, kind)
-        assert flow["step_id"] == "user"
-        result = await hass.config_entries.subentries.async_configure(flow["flow_id"], {"name": " Seil "})
-        assert result["type"] is FlowResultType.CREATE_ENTRY  # derselbe Name in beiden Listen ist erlaubt
-
-    subs = {s.subentry_type: s for s in entry.subentries.values()}
-    assert subs["like"].data == {"name": "Seil"} and subs["like"].title == "Seil"
-    assert subs["like"].unique_id == "like:seil" and subs["treat"].unique_id == "treat:seil"
-
-
-async def test_preference_name_must_be_unique_per_kind(hass: HomeAssistant) -> None:
-    entry = await setup_entry(hass, likes=["Seil"])
-    flow = await _start_sub(hass, entry, "like")
-
-    result = await hass.config_entries.subentries.async_configure(flow["flow_id"], {"name": " SEIL "})
-
-    assert result["type"] is FlowResultType.FORM
-    assert result["errors"] == {"name": "name_taken"}
-
-
-async def test_preference_reconfigure_renames(hass: HomeAssistant) -> None:
-    entry = await setup_entry(hass, [make_partner("Frank", 1, likes=["l_Seil"])], likes=["Seil"])
-    flow = await _start_sub(hass, entry, "like", source="reconfigure", subentry_id="l_Seil")
-    assert _shown(flow) == {"name": "Seil"}
-
-    result = await hass.config_entries.subentries.async_configure(flow["flow_id"], {"name": "Schal"})
-
-    assert result["type"] is FlowResultType.ABORT and result["reason"] == "reconfigure_successful"
-    assert entry.subentries["l_Seil"].data == {"name": "Schal"}
-    await hass.async_block_till_done()
-    assert entry.runtime_data.liked(entry.runtime_data.partners["p_Frank"]) == ["Schal"]
+    sub = next(iter(entry.subentries.values()))
+    assert sub.data["likes"] == ["Seil", "Schal"]  # keine Doppelten, keine leeren Namen, bekannte Schreibweise
 
 
 async def test_partner_flow_checks_name_and_number(hass: HomeAssistant) -> None:

@@ -50,35 +50,22 @@ Platzhalter in geschweiften Klammern: `{partner}` Name, `{nr}` Nummer des Spielp
 | Feld | Bedeutung |
 |---|---|
 | **Spitzname** | Platzhalter `{nickname}` in den Ansagen (ohne Spitzname steht dort der Name) |
-| **Eigene Vorlieben**, **Vorlieben zum Bearbeiten seines Partners** | zwei Auswahlfelder mit Mehrfachauswahl, die Einträge legst du vorher an (siehe unten). Beide Felder erscheinen erst, wenn es Einträge gibt |
+| **Eigene Vorlieben**, **Vorlieben zum Bearbeiten seines Partners** | zwei Felder, in die du eigene Einträge tippst (jeden mit Enter bestätigen). Alles, was du je eingegeben hast, steht bei jedem weiteren Spielpartner zur Wahl |
 | **Ansage** | eine `notify`-Entity (zum Beispiel ein Echo) mit je einem Text für den Start und das Ende einer Aufnahme. In den Texten gehen `{nickname}`, `{partner}`, `{nr}`, `{saison}` und `{ort}` |
 
 Die Kameras gehören nicht zum Spielpartner, sondern zu seinen Orten. Nach einem Neustart von Home Assistant erkennt die Integration laufende Aufnahmen wieder.
 
 ### Vorlieben
 
-Auf der Integrationsseite gibt es zwei weitere Schaltflächen: **Eigene Vorliebe hinzufügen** und **Vorliebe zum Bearbeiten hinzufügen**. Jeder Eintrag hat nur einen Namen und lässt sich dort mit dem Zahnrad umbenennen oder löschen. Dieselbe Vorliebe wählst du bei beliebig vielen Spielpartnern aus. Welche gewählt sind, steht in den Attributen `nickname`, `likes` und `treats` des Status-Sensors jedes Spielpartners, zum Beispiel für eigene Automationen.
+Die Vorlieben gibst du direkt beim Spielpartner ein, es braucht keine eigenen Einträge dafür. Neue Namen merkt sich die Integration im Hintergrund, bei jedem weiteren Spielpartner stehen sie zur Wahl. Am **Gerät des Spielpartners** bekommt jede Vorliebe:
 
-### Orte
-
-*Spiel Saison → Ort hinzufügen* (Bett, Schaukel …). **Jeder Ort gehört zu einem Spielpartner** und bringt die Kameras mit, die dort aufnehmen. Ein Name darf bei mehreren Spielpartnern vorkommen („Bett“ bei Frank und „Bett“ bei Tobias sind zwei Orte). Der Dialog hat vier Schritte, alles außer Name, Spielpartner und Kameras ist optional:
-
-| Schritt | Einstellung |
+| Entity | Bedeutung |
 |---|---|
-| 1 | **Name**, darunter der **Spielpartner** (Auswahlfeld), die **Kameras** des Ortes, **Vorlauf** (Standard 30 s) und **Pause** vor dem Ende-Schritt (Standard 10 s) |
-| 2 | **PTZ-Position je Kamera:** für jede ausgewählte Ctronics-Kamera ein eigenes Auswahlfeld mit ihren gespeicherten Positionen (oder „Nicht bewegen“). Der Schritt entfällt, wenn der Ort keine Ctronics-Kamera hat |
-| 3 | **Vorbereiten:** einschalten, dazu Rollo oder Winde auf eine Position fahren (davor beginnt die Saison des Tages, siehe unten). **Beginn:** erst ausschalten, dann einschalten |
-| 4 | **Ende:** erst ausschalten, dann einschalten |
+| Sensor (unter **Diagnose**) | die Vorliebe für sich, mit dem Namen der Vorliebe. Der Zustand nennt die Art (eigene Vorliebe oder Vorliebe zum Bearbeiten), das Attribut `active` zeigt, ob sie gerade „dabei“ ist |
+| Schalter **… dabei** | schaltest du vor dem Spielen ein, was dabei sein soll. Der Schalter bleibt, wie er ist, bis du ihn änderst |
+| Sensor **… Zähler** | bei wie vielen Aufnahmen die Vorliebe „dabei“ war. Beim Start einer Aufnahme zählt jede eingeschaltete Vorliebe +1 |
 
-Die Namen der Positionen stammen aus der Integration Ctronics 4K Cam (dort unter *Optionen → Preset-Positionen*, eine Zeile `1: Schaukel` je Position). Hat eine Kamera noch keine Namen, stehen die Nummern 1 bis 64 zur Wahl. Dieselbe Kamera darf bei mehreren Orten stehen, sie nimmt aber nie bei zwei Spielpartnern zugleich auf. Wird eine Kamera-Entity umbenannt, ziehen die Orte mit.
-
-Die „Ziele“ wählst du wie in Automationen: Entities, Geräte, Bereiche oder **Labels**, auch Szenen und Skripte. Aufgerufen wird `homeassistant.turn_on` und `turn_off`.
-
-**Ablauf beim Starten:** Kameras auf ihre PTZ-Position fahren → Beginn „ausschalten“ → Beginn „einschalten“ → Ansage des Spielpartners → Vorlauf → Aufnahme. **Beim Beenden:** Aufnahme stoppen → Pause → Ende „ausschalten“ → Ende „einschalten“ → Ansage des Spielpartners. Schlägt ein Aufruf fehl, läuft der Rest trotzdem weiter, die Aufnahme ist wichtiger als das Licht (der Fehler steht im Protokoll und im Attribut `message` des Status-Sensors). Wird beim Vorlauf gestoppt, fällt die Aufnahme aus und der Ende-Schritt stellt alles zurück. Lehnt die App den Start ab (z. B. Speicher voll), läuft der Ende-Schritt ebenfalls. Ein Spielpartner ohne Ort kann nicht aufnehmen.
-
-### Saison
-
-Eine Saison ist ein Spieltag mit allen Aufnahmen darin, sie bekommt einen eigenen Ordner. **Pro Tag beginnt höchstens eine Saison:** Das **Vorbereiten** (Taste oder Dienst) beginnt die neue Saison, wenn es für heute noch keine gibt, und bereitet danach den Ort vor. Drückst du am selben Tag noch einmal auf Vorbereiten, bleibt die Saison, wie sie ist, und nur der Ort wird vorbereitet. Läuft bei dem Spielpartner gerade eine Aufnahme, ändert Vorbereiten die Saison nie. Die Taste **Neue Saison beginnen** und der Dienst `new_season` gelten dieselbe Regel (die Taste meldet es, wenn es für heute schon eine Saison gibt, der Dienst antwortet mit `started: false`). Ein neu angelegter Spielpartner startet mit Saison 1 am Tag des Anlegens, die nächste beginnt also frühestens am Folgetag.
+Fügst du beim Bearbeiten des Spielpartners eine Vorliebe hinzu, tauchen ihre drei Entities nach dem Speichern am Gerät auf, gestrichene verschwinden dort samt Entities. Der Zähler läuft unter dem Namen der Vorliebe weiter, solange er gleich bleibt. Die Listen stehen auch in den Attributen `nickname`, `likes` und `treats` des Status-Sensors, zum Beispiel für eigene Automationen.
 
 ## Entities
 
@@ -142,7 +129,7 @@ Die Tests der App brauchen `ffmpeg` und laufen sonst nur teilweise. In der CI la
 
 ## English
 
-**Spiel Saison** manages seasons, play partners and recordings in Home Assistant. Every play partner has fixed cameras, their own seasons and counters. One switch sets up a place (move the Ctronics cameras to a PTZ preset, switch lights and devices, make an announcement), waits for the lead time and starts a stream-copy recording through the app **Spiel Saison Recorder** (ffmpeg `-c copy`, no re-encoding). When you stop, it waits, puts everything back and updates the statistics. Every place belongs to a play partner and brings its cameras, with a PTZ position per Ctronics camera taken from the camera's stored positions; the announcement belongs to the play partner, together with an optional nickname (a placeholder for the announcements) and two lists of preferences that you add as entries of their own on the integration page. Preparing a place also begins the season of the day, at most one season begins per day. Folder and file names come from patterns with placeholders for partner, season, recording number and camera name. The integration offers services and events for your own automations. Install the integration through HACS and add this repository to the App store for the recorder. The texts in the UI are available in German and English.
+**Spiel Saison** manages seasons, play partners and recordings in Home Assistant. Every play partner has fixed cameras, their own seasons and counters. One switch sets up a place (move the Ctronics cameras to a PTZ preset, switch lights and devices, make an announcement), waits for the lead time and starts a stream-copy recording through the app **Spiel Saison Recorder** (ffmpeg `-c copy`, no re-encoding). When you stop, it waits, puts everything back and updates the statistics. Every place belongs to a play partner and brings its cameras, with a PTZ position per Ctronics camera taken from the camera's stored positions; the announcement belongs to the play partner, together with an optional nickname (a placeholder for the announcements) and two lists of preferences that you type in directly; every preference gets a diagnostic sensor, an “included” switch and a counter on the device. Preparing a place also begins the season of the day, at most one season begins per day. Folder and file names come from patterns with placeholders for partner, season, recording number and camera name. The integration offers services and events for your own automations. Install the integration through HACS and add this repository to the App store for the recorder. The texts in the UI are available in German and English.
 
 ## Lizenz
 

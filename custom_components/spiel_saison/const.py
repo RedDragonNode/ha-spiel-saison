@@ -6,8 +6,10 @@ DOMAIN = "spiel_saison"
 
 SUBENTRY_PARTNER = "partner"
 SUBENTRY_PLACE = "place"
-SUBENTRY_LIKE = "like"  # eigene Vorliebe, aus diesen Einträgen wählt der Spielpartner
-SUBENTRY_TREAT = "treat"  # Vorliebe zum Bearbeiten seines Partners
+SUBENTRY_LIKE = "like"  # nur 0.3.x: Vorlieben waren eigene Einträge (siehe Umstellung), heute sind es Namen
+SUBENTRY_TREAT = "treat"  # nur 0.3.x
+KIND_LIKE = "like"  # eigene Vorliebe
+KIND_TREAT = "treat"  # Vorliebe zum Bearbeiten seines Partners
 
 # --- Verbindung zur App und Ordner-Muster (config_entry.data) ----------------------
 CONF_RECORDER_URL = "recorder_url"
@@ -18,6 +20,8 @@ CONF_BASE_FOLDER = "base_folder"  # Ordner unter dem Aufnahme-Ordner der App, z.
 CONF_PARTNER_PATTERN = "partner_pattern"  # Ordner je Spielpartner
 CONF_SEASON_PATTERN = "season_pattern"  # Ordner je Saison, darin liegen die Aufnahmen
 CONF_FILE_PATTERN = "file_pattern"  # Dateiname je Kamera (ohne Endung)
+CONF_LIKE_CATALOG = "like_catalog"  # alle je eingegebenen eigenen Vorlieben, stehen bei neuen Spielpartnern zur Wahl
+CONF_TREAT_CATALOG = "treat_catalog"  # dasselbe für die Vorlieben zum Bearbeiten
 
 DEFAULT_BASE_FOLDER = "Spiel_Saison"
 DEFAULT_PARTNER_PATTERN = "Spielen mit {partner} #{nr}"
@@ -28,8 +32,8 @@ OLD_CAM_NUMBER_PART = "Cam ID.{cam_nr}"  # bis 0.1.0 stand hier die Nummer der K
 # --- Spielpartner (Subentry-Daten) -------------------------------------------------
 CONF_NUMBER = "number"  # Nummer des Spielpartners ("nr" in den Mustern)
 CONF_NICKNAME = "nickname"  # Spitzname, in den Ansagen als Platzhalter nickname benutzbar
-CONF_LIKES = "likes"  # Subentry-IDs der eigenen Vorlieben
-CONF_TREATS = "treats"  # Subentry-IDs der Vorlieben zum Bearbeiten seines Partners
+CONF_LIKES = "likes"  # Namen der eigenen Vorlieben
+CONF_TREATS = "treats"  # Namen der Vorlieben zum Bearbeiten seines Partners
 CONF_ANNOUNCE_ENTITY = "announce_entity"  # notify-Entity für Ansagen
 CONF_ANNOUNCE_START = "announce_start"
 CONF_ANNOUNCE_END = "announce_end"

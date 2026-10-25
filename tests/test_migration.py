@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.spiel_saison.const import DOMAIN
 from custom_components.spiel_saison.manager import counters_store
 
-from .conftest import add_cameras, make_partner, setup_entry
+from .conftest import KEY, URL, add_cameras, make_partner, setup_entry
 
 OLD_PATTERN = "#{nr}.{saison}.{aufnahme}.Cam ID.{cam_nr} (4K) %DD.%MM.%CCYY"
 
@@ -24,14 +25,14 @@ def _old_place(name: str, **fields) -> dict:
 async def test_the_stored_file_pattern_gets_the_camera_name_instead_of_the_number(hass: HomeAssistant) -> None:
     entry = await setup_entry(hass, minor_version=1, file_pattern=OLD_PATTERN)
 
-    assert entry.minor_version == 3
+    assert entry.minor_version == 4
     assert entry.data["file_pattern"] == "#{nr}.{saison}.{aufnahme}.Cam ID.{cam} (4K) %DD.%MM.%CCYY"
 
 
 async def test_an_own_file_pattern_is_left_alone(hass: HomeAssistant) -> None:
     entry = await setup_entry(hass, minor_version=1, file_pattern="{cam} {cam_nr}")
 
-    assert entry.minor_version == 3
+    assert entry.minor_version == 4
     assert entry.data["file_pattern"] == "{cam} {cam_nr}"
 
 
@@ -56,11 +57,13 @@ async def test_cameras_move_from_the_partner_to_the_place(
         minor_version=2,
     )
 
-    assert entry.minor_version == 3
+    assert entry.minor_version == 4
     partner = entry.subentries["p_Tobias"]
     assert partner.data == {
         "name": "Tobias",
         "number": 1,
+        "likes": [],
+        "treats": [],
         "announce_entity": "notify.echo",
         "announce_start": "Los",
         "announce_end": "Fertig",
@@ -154,4 +157,38 @@ async def test_the_old_hub_select_is_removed(hass: HomeAssistant, entity_registr
     await hass.async_block_till_done()
 
     assert entity_registry.async_get(stale.entity_id) is None
-    assert entry.minor_version == 3
+    assert entry.minor_version == 4
+
+
+async def test_the_preference_entries_of_0_3_become_names(hass: HomeAssistant) -> None:
+    def sub(kind: str, sid: str, data: dict) -> dict:
+        return {"subentry_type": kind, "title": data["name"], "unique_id": sid, "subentry_id": sid, "data": data}
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        minor_version=3,
+        data={"recorder_url": URL, "recorder_key": KEY},
+        subentries_data=[
+            # die Vorlieben aus 0.3.x: eigene Einträge, auf die der Spielpartner mit IDs zeigte
+            sub(
+                "partner",
+                "p_Tobias",
+                {"name": "Tobias", "number": 1, "likes": ["l_Seil", "l_Weg"], "treats": ["t_Feder"]},
+            ),
+            sub("like", "l_Seil", {"name": "Seil"}),
+            sub("like", "l_Frei", {"name": "Frei"}),
+            sub("treat", "t_Feder", {"name": "Feder"}),
+        ],
+    )
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.minor_version == 4
+    assert entry.subentries["p_Tobias"].data["likes"] == ["Seil"]  # „Weg“ gab es nicht mehr
+    assert entry.subentries["p_Tobias"].data["treats"] == ["Feder"]
+    assert not [s for s in entry.subentries.values() if s.subentry_type in ("like", "treat")]
+    assert entry.data["like_catalog"] == ["Seil", "Frei"]  # auch nicht gewählte bleiben für neue Spielpartner
+    assert entry.data["treat_catalog"] == ["Feder"]
+    assert entry.runtime_data.partners["p_Tobias"].likes == ["Seil"]

@@ -62,16 +62,16 @@ from .const import (
     EVENT_SEASON,
     EVENT_STARTED,
     EVENT_STOPPED,
+    KIND_LIKE,
+    KIND_TREAT,
     PHASE_IDLE,
     PHASE_RECORDING,
     PHASE_STARTING,
     PHASE_STOPPING,
     POLL_SECONDS,
     STORAGE_VERSION,
-    SUBENTRY_LIKE,
     SUBENTRY_PARTNER,
     SUBENTRY_PLACE,
-    SUBENTRY_TREAT,
 )
 from .recorder_client import RecorderAuthError, RecorderClient, RecorderError
 
@@ -90,8 +90,8 @@ class PartnerCfg:
     name: str
     number: int
     nickname: str = ""
-    likes: list[str] = field(default_factory=list)  # Subentry-IDs der eigenen Vorlieben
-    treats: list[str] = field(default_factory=list)  # Subentry-IDs der Vorlieben zum Bearbeiten seines Partners
+    likes: list[str] = field(default_factory=list)  # eigene Vorlieben
+    treats: list[str] = field(default_factory=list)  # Vorlieben zum Bearbeiten seines Partners
     announce_entity: str = ""
     announce_start: str = ""
     announce_end: str = ""
@@ -131,6 +131,8 @@ class PartnerState:
     last_start: str | None = None
     last_seconds: float | None = None
     seasons: dict[str, dict[str, Any]] = field(default_factory=dict)  # abgeschlossene Saisons
+    pref_counts: dict[str, int] = field(default_factory=dict)  # Schlüssel der Vorliebe -> Aufnahmen mit „dabei“
+    pref_on: list[str] = field(default_factory=list)  # Schlüssel der Vorlieben, die „dabei“ sind
 
 
 def _target(value: Any) -> dict[str, Any]:
@@ -154,8 +156,6 @@ class SpielSaisonManager:
         self._unsubs: list[CALLBACK_TYPE] = []
         self.partners: dict[str, PartnerCfg] = {}
         self.places: dict[str, PlaceCfg] = {}
-        self.likes: dict[str, str] = {}  # Subentry-ID -> Name der eigenen Vorlieben
-        self.treats: dict[str, str] = {}  # Subentry-ID -> Name der Vorlieben zum Bearbeiten
         self.states: dict[str, PartnerState] = {}
         self.runs: dict[str, dict[str, Any]] = {}  # laufende Abläufe je Spielpartner
         self.place_ids: dict[str, str] = {}  # gewählter Ort je Spielpartner
@@ -181,6 +181,8 @@ class SpielSaisonManager:
             raw = (stored.get("partners") or {}).get(sid) or {}
             state = PartnerState(**{k: v for k, v in raw.items() if k in known})
             state.season_start = state.season_start or today
+            keys = {key for _kind, _name, key in self.preferences(self.partners[sid])}
+            state.pref_on = [key for key in state.pref_on if key in keys]
             self.states[sid] = state
         chosen = stored.get("places") or {}
         legacy = stored.get("place")  # bis 0.1.x gab es einen gewählten Ort für alle
@@ -192,21 +194,17 @@ class SpielSaisonManager:
         self._saved_runs = {sid: run for sid, run in (stored.get("runs") or {}).items() if sid in self.partners}
 
     def _read_subentries(self) -> None:
-        self.partners, self.places, self.likes, self.treats = {}, {}, {}, {}
+        self.partners, self.places = {}, {}
         for sid, sub in self.entry.subentries.items():
             d = sub.data
-            if sub.subentry_type == SUBENTRY_LIKE:
-                self.likes[sid] = d[CONF_NAME]
-            elif sub.subentry_type == SUBENTRY_TREAT:
-                self.treats[sid] = d[CONF_NAME]
-            elif sub.subentry_type == SUBENTRY_PARTNER:
+            if sub.subentry_type == SUBENTRY_PARTNER:
                 self.partners[sid] = PartnerCfg(
                     sid,
                     d[CONF_NAME],
                     int(d.get(CONF_NUMBER) or 1),
                     nickname=(d.get(CONF_NICKNAME) or "").strip(),
-                    likes=list(d.get(CONF_LIKES) or []),
-                    treats=list(d.get(CONF_TREATS) or []),
+                    likes=logic.clean_names(d.get(CONF_LIKES) or []),
+                    treats=logic.clean_names(d.get(CONF_TREATS) or []),
                     announce_entity=d.get(CONF_ANNOUNCE_ENTITY) or "",
                     announce_start=d.get(CONF_ANNOUNCE_START) or "",
                     announce_end=d.get(CONF_ANNOUNCE_END) or "",
@@ -240,13 +238,24 @@ class SpielSaisonManager:
                 end_s=int(d.get(CONF_END_SECONDS, DEFAULT_END_SECONDS)),
             )
 
-    def liked(self, partner: PartnerCfg) -> list[str]:
-        """Namen der eigenen Vorlieben des Spielpartners (gelöschte Einträge fallen weg)."""
-        return [self.likes[i] for i in partner.likes if i in self.likes]
+    @staticmethod
+    def preferences(partner: PartnerCfg) -> list[tuple[str, str, str]]:
+        """Alle Vorlieben eines Spielpartners als (Art, Name, Schlüssel)."""
+        return [
+            (kind, name, logic.preference_key(kind, name))
+            for kind, names in ((KIND_LIKE, partner.likes), (KIND_TREAT, partner.treats))
+            for name in names
+        ]
 
-    def treated(self, partner: PartnerCfg) -> list[str]:
-        """Namen der Vorlieben zum Bearbeiten seines Partners."""
-        return [self.treats[i] for i in partner.treats if i in self.treats]
+    async def async_set_preference(self, sid: str, key: str, *, on: bool) -> None:
+        """Eine Vorliebe „dabei“ ein- oder ausschalten. Beim Start einer Aufnahme zählen die eingeschalteten."""
+        state = self.states[sid]
+        if on and key not in state.pref_on:
+            state.pref_on.append(key)
+        elif not on and key in state.pref_on:
+            state.pref_on.remove(key)
+        await self._save()
+        self.notify()
 
     def places_of(self, sid: str) -> dict[str, PlaceCfg]:
         """Die Orte eines Spielpartners (Subentry-ID -> Ort)."""
@@ -735,6 +744,8 @@ class SpielSaisonManager:
         st = self.states[sid]
         st.count_season += 1
         st.count_total += 1
+        for key in st.pref_on:
+            st.pref_counts[key] = st.pref_counts.get(key, 0) + 1
         run["start"] = st.last_start = dt_util.utcnow().isoformat()
         run["phase"] = PHASE_RECORDING
         self._tasks.pop(sid, None)

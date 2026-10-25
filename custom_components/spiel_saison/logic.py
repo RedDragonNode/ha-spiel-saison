@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from datetime import datetime
 
 _UMLAUTE = str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss", "Ä": "ae", "Ö": "oe", "Ü": "ue"})
@@ -31,6 +31,25 @@ def norm(text: str) -> str:
 def place_title(place: str, partner: str) -> str:
     """Titel eines Ortes in der Liste der Einträge: der Name allein wäre bei zwei Spielpartnern doppelt."""
     return f"{place} ({partner})"
+
+
+def clean_names(names: Iterable[object], known: Iterable[str] = ()) -> list[str]:
+    """Eingegebene Namen bereinigen: ohne Leerzeichen am Rand, ohne Doppelte, in der Schreibweise der bekannten.
+
+    Namen ohne Buchstaben und Ziffern fallen weg. Die Reihenfolge der Eingabe bleibt.
+    """
+    spelling = {norm(name): name for name in known}
+    out: dict[str, str] = {}
+    for raw in names:
+        name = str(raw).strip()
+        if key := norm(name):
+            out.setdefault(key, spelling.get(key, name))
+    return list(out.values())
+
+
+def preference_key(kind: str, name: str) -> str:
+    """Schlüssel einer Vorliebe in den gespeicherten Zählern: Art und Name, ohne Groß- und Kleinschreibung."""
+    return f"{kind}:{norm(name)}"
 
 
 def pad(number: int) -> str:

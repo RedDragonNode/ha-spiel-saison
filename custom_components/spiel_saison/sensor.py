@@ -12,8 +12,8 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import dt as dt_util
 
 from . import SpielSaisonConfigEntry
-from .const import PHASE_IDLE, PHASE_RECORDING, PHASE_STARTING, PHASE_STOPPING
-from .entity import PartnerEntity, SpielSaisonEntity, hub_device
+from .const import KIND_LIKE, KIND_TREAT, PHASE_IDLE, PHASE_RECORDING, PHASE_STARTING, PHASE_STOPPING
+from .entity import PartnerEntity, PreferenceEntity, SpielSaisonEntity, hub_device
 from .manager import STATUS_ERROR, STATUS_IDLE, STATUS_RECORDING, PartnerCfg, PartnerState, SpielSaisonManager
 
 
@@ -34,6 +34,11 @@ async def async_setup_entry(
             ],
             config_subentry_id=sid,
         )
+        for kind, name, _key in m.preferences(partner):
+            async_add_entities(
+                [PreferenceInfoSensor(m, partner, kind, name), PreferenceCountSensor(m, partner, kind, name)],
+                config_subentry_id=sid,
+            )
 
 
 class StatusSensor(SpielSaisonEntity, SensorEntity):
@@ -131,8 +136,8 @@ class PartnerStatusSensor(PartnerEntity, SensorEntity):
             "recording": run.get("no"),
             "cams": run.get("cams") or [],
             "nickname": self.partner.nickname or None,
-            "likes": self.manager.liked(self.partner),
-            "treats": self.manager.treated(self.partner),
+            "likes": list(self.partner.likes),
+            "treats": list(self.partner.treats),
         }
 
 
@@ -194,6 +199,43 @@ class LastRecordingSensor(_StateSensor):
     def extra_state_attributes(self) -> dict[str, Any]:
         seconds = self._state.last_seconds
         return {"duration_min": round(seconds / 60, 1) if seconds is not None else None}
+
+
+class PreferenceInfoSensor(PreferenceEntity, SensorEntity):
+    """Eine Vorliebe für sich, unter „Diagnose“ am Gerät. Der Zustand sagt, um welche Art es geht."""
+
+    _attr_translation_key = "preference"
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = [KIND_LIKE, KIND_TREAT]  # noqa: RUF012
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:heart-outline"
+
+    def __init__(self, m: SpielSaisonManager, partner: PartnerCfg, kind: str, name: str) -> None:
+        super().__init__(m, partner, kind, name, "info")
+        self._attr_name = name
+
+    @property
+    def native_value(self) -> str:
+        return self.kind
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {"active": self.pref_key in self.manager.states[self.sid].pref_on}
+
+
+class PreferenceCountSensor(PreferenceEntity, SensorEntity):
+    """Bei wie vielen Aufnahmen die Vorliebe „dabei“ war (der Schalter dazu war beim Start eingeschaltet)."""
+
+    _attr_translation_key = "preference_count"
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_icon = "mdi:counter"
+
+    def __init__(self, m: SpielSaisonManager, partner: PartnerCfg, kind: str, name: str) -> None:
+        super().__init__(m, partner, kind, name, "count")
+
+    @property
+    def native_value(self) -> int:
+        return self.manager.states[self.sid].pref_counts.get(self.pref_key, 0)
 
 
 class FolderSensor(PartnerEntity, SensorEntity):

@@ -72,3 +72,17 @@ def test_preset_labels_add_the_number_to_equal_names() -> None:
 
 def test_place_title_names_the_partner() -> None:
     assert logic.place_title("Bett", "Frank") == "Bett (Frank)"
+
+
+def test_clean_names_strips_dedupes_and_keeps_the_known_spelling() -> None:
+    assert logic.clean_names([" seil ", "SEIL", "Schal", "!!!", "", "schal"], known=["Seil"]) == ["Seil", "Schal"]
+    assert logic.clean_names([]) == []
+
+
+def test_preference_key_ignores_case_and_punctuation() -> None:
+    assert (
+        logic.preference_key("like", "Spielzeug XXL")
+        == logic.preference_key("like", "spielzeug-xxl")
+        == "like:spielzeugxxl"
+    )
+    assert logic.preference_key("treat", "Seil") != logic.preference_key("like", "Seil")

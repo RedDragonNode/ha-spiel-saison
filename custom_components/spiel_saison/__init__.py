@@ -26,17 +26,24 @@ from .const import (
     CONF_CAM_PRESETS,
     CONF_CAMS,
     CONF_FILE_PATTERN,
+    CONF_LIKE_CATALOG,
+    CONF_LIKES,
     CONF_PARTNER,
     CONF_PTZ_PRESET,
+    CONF_TREAT_CATALOG,
+    CONF_TREATS,
     DOMAIN,
     OLD_CAM_NUMBER_PART,
     SERVICE_NEW_SEASON,
     SERVICE_PREPARE,
     SERVICE_START,
     SERVICE_STOP,
+    SUBENTRY_LIKE,
     SUBENTRY_PARTNER,
     SUBENTRY_PLACE,
+    SUBENTRY_TREAT,
 )
+from .entity import preference_unique_part
 from .manager import SpielSaisonManager, counters_store
 
 _ANNOUNCE_KEYS = (CONF_ANNOUNCE_ENTITY, CONF_ANNOUNCE_START, CONF_ANNOUNCE_END)
@@ -89,6 +96,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SpielSaisonConfigEntry) 
     manager = SpielSaisonManager(hass, entry)
     await manager.async_load()
     entry.runtime_data = manager
+    _drop_stale_preference_entities(hass, entry, manager)
     manager.hub_device_id = (
         dr.async_get(hass)
         .async_get_or_create(
@@ -124,7 +132,35 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if stale := er.async_get(hass).async_get_entity_id("select", DOMAIN, f"{entry.entry_id}_place"):
             er.async_get(hass).async_remove(stale)  # die Ortsauswahl hängt jetzt am Gerät jedes Spielpartners
         hass.config_entries.async_update_entry(entry, minor_version=3)
+    if entry.minor_version < 4:
+        # 1.4: Vorlieben sind keine eigenen Einträge mehr, die Spielpartner tragen die Namen selbst
+        _preferences_to_names(hass, entry)
+        hass.config_entries.async_update_entry(entry, minor_version=4)
     return True
+
+
+def _preferences_to_names(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Die Vorlieben-Einträge aus 0.3.x werden zu Namen bei den Spielpartnern und in der Liste für neue Spielpartner."""
+    subentries = list(entry.subentries.values())
+    names = {
+        kind: {s.subentry_id: s.data[CONF_NAME] for s in subentries if s.subentry_type == kind}
+        for kind in (SUBENTRY_LIKE, SUBENTRY_TREAT)
+    }
+    for partner in (s for s in subentries if s.subentry_type == SUBENTRY_PARTNER):
+        data = dict(partner.data)
+        for kind, key in ((SUBENTRY_LIKE, CONF_LIKES), (SUBENTRY_TREAT, CONF_TREATS)):
+            data[key] = logic.clean_names([names[kind][i] for i in data.get(key) or [] if i in names[kind]])
+        if data != dict(partner.data):
+            hass.config_entries.async_update_subentry(entry, partner, data=data)
+    catalogs = {
+        key: logic.clean_names([*(entry.data.get(key) or []), *names[kind].values()])
+        for kind, key in ((SUBENTRY_LIKE, CONF_LIKE_CATALOG), (SUBENTRY_TREAT, CONF_TREAT_CATALOG))
+    }
+    if any(catalogs.values()):
+        hass.config_entries.async_update_entry(entry, data={**entry.data, **catalogs})
+    for kind in names:
+        for sid in names[kind]:
+            hass.config_entries.async_remove_subentry(entry, sid)
 
 
 def _move_cams_to_places(hass: HomeAssistant, entry: ConfigEntry) -> None:
@@ -169,6 +205,20 @@ def _move_cams_to_places(hass: HomeAssistant, entry: ConfigEntry) -> None:
                         data=MappingProxyType(data), subentry_type=SUBENTRY_PLACE, title=title, unique_id=unique_id
                     ),
                 )
+
+
+def _drop_stale_preference_entities(hass: HomeAssistant, entry: ConfigEntry, manager: SpielSaisonManager) -> None:
+    """Entities von Vorlieben, die aus einem Spielpartner gestrichen wurden, aus der Registry nehmen."""
+    wanted = {
+        f"{entry.entry_id}_{sid}_{preference_unique_part(kind, name, role)}"
+        for sid, partner in manager.partners.items()
+        for kind, name, _key in manager.preferences(partner)
+        for role in ("info", "count", "active")
+    }
+    registry = er.async_get(hass)
+    for ent in er.async_entries_for_config_entry(registry, entry.entry_id):
+        if "_pref_" in ent.unique_id and ent.unique_id not in wanted:
+            registry.async_remove(ent.entity_id)
 
 
 async def _reload_on_change(hass: HomeAssistant, entry: ConfigEntry) -> None:

@@ -53,13 +53,13 @@
       "step": {
         "user": {
           "title": "Neuer Spielpartner",
-          "description": "Jeder Spielpartner hat eigene Saisons, Zähler und einen eigenen Ordner. Die Kameras gehören zu den Orten, die du danach für ihn anlegst. Die Nummer erscheint im Ordner und im Dateinamen, zum Beispiel als 02. Der Spitzname ist optional. Eigene Vorlieben und Vorlieben zum Bearbeiten seines Partners wählst du aus den Einträgen, die du vorher auf der Integrationsseite angelegt hast. Die beiden Felder erscheinen erst, wenn es solche Einträge gibt. Die Ansage ist optional: Sie läuft über eine notify-Entity, zum Beispiel einen Echo, beim Start und beim Ende einer Aufnahme. In den Texten kannst du die Platzhalter nickname, partner, nr, saison und ort jeweils in geschweiften Klammern benutzen.",
+          "description": "Jeder Spielpartner hat eigene Saisons, Zähler und einen eigenen Ordner. Die Kameras gehören zu den Orten, die du danach für ihn anlegst. Die Nummer erscheint im Ordner und im Dateinamen, zum Beispiel als 02. Der Spitzname ist optional. Bei den Vorlieben tippst du eigene Einträge ein und bestätigst jeden mit Enter. Alles, was du je eingegeben hast, steht danach bei jedem weiteren Spielpartner zur Wahl. Jede Vorliebe bekommt am Gerät des Spielpartners einen Eintrag unter „Diagnose“, einen Schalter „dabei“ und einen Zähler. Die Ansage ist optional: Sie läuft über eine notify-Entity, zum Beispiel einen Echo, beim Start und beim Ende einer Aufnahme. In den Texten kannst du die Platzhalter nickname, partner, nr, saison und ort jeweils in geschweiften Klammern benutzen.",
           "data": {
             "name": "Name",
             "number": "Nummer",
             "nickname": "Spitzname (Platzhalter nickname in den Ansagen)",
-            "likes": "Eigene Vorlieben",
-            "treats": "Vorlieben zum Bearbeiten seines Partners",
+            "likes": "Eigene Vorlieben (tippen und mit Enter bestätigen)",
+            "treats": "Vorlieben zum Bearbeiten seines Partners (tippen und mit Enter bestätigen)",
             "announce_entity": "Ansage über (notify-Entity, z. B. Alexa)",
             "announce_start": "Ansage beim Start",
             "announce_end": "Ansage beim Ende"
@@ -67,13 +67,13 @@
         },
         "reconfigure": {
           "title": "Spielpartner bearbeiten",
-          "description": "Name, Nummer, Spitzname, Vorlieben und Ansage ändern. Zähler und Saison bleiben erhalten. Schon vorhandene Aufnahmen bleiben in ihrem Ordner, neue gehen in den Ordner mit dem geänderten Namen. Die Kameras stehen bei den Orten. In den Ansagen kannst du die Platzhalter nickname, partner, nr, saison und ort jeweils in geschweiften Klammern benutzen.",
+          "description": "Name, Nummer, Spitzname, Vorlieben und Ansage ändern. Neue Vorlieben bekommen beim Speichern ihre Einträge am Gerät, gestrichene verschwinden dort. Zähler und Saison bleiben erhalten. Schon vorhandene Aufnahmen bleiben in ihrem Ordner, neue gehen in den Ordner mit dem geänderten Namen. Die Kameras stehen bei den Orten. In den Ansagen kannst du die Platzhalter nickname, partner, nr, saison und ort jeweils in geschweiften Klammern benutzen.",
           "data": {
             "name": "Name",
             "number": "Nummer",
             "nickname": "Spitzname (Platzhalter nickname in den Ansagen)",
-            "likes": "Eigene Vorlieben",
-            "treats": "Vorlieben zum Bearbeiten seines Partners",
+            "likes": "Eigene Vorlieben (tippen und mit Enter bestätigen)",
+            "treats": "Vorlieben zum Bearbeiten seines Partners (tippen und mit Enter bestätigen)",
             "announce_entity": "Ansage über (notify-Entity, z. B. Alexa)",
             "announce_start": "Ansage beim Start",
             "announce_end": "Ansage beim Ende"
@@ -174,64 +174,6 @@
         "no_partner": "Bitte lege zuerst einen Spielpartner an. Ein Ort gehört immer zu einem Spielpartner.",
         "reconfigure_successful": "Gespeichert."
       }
-    },
-    "like": {
-      "initiate_flow": {
-        "user": "Eigene Vorliebe hinzufügen",
-        "reconfigure": "Eigene Vorliebe bearbeiten"
-      },
-      "entry_type": "Eigene Vorliebe",
-      "step": {
-        "user": {
-          "title": "Neue eigene Vorliebe",
-          "description": "Eine Vorliebe ist ein Name, den du bei einem Spielpartner auswählen kannst. Lege zuerst die Vorlieben an und wähle sie danach beim Spielpartner aus.",
-          "data": {
-            "name": "Name"
-          }
-        },
-        "reconfigure": {
-          "title": "Eigene Vorliebe bearbeiten",
-          "description": "Beim Umbenennen ziehen alle Spielpartner mit, die diese Vorliebe gewählt haben.",
-          "data": {
-            "name": "Name"
-          }
-        }
-      },
-      "error": {
-        "name_taken": "Diese Vorliebe gibt es schon (oder der Name ist leer)."
-      },
-      "abort": {
-        "reconfigure_successful": "Gespeichert."
-      }
-    },
-    "treat": {
-      "initiate_flow": {
-        "user": "Vorliebe zum Bearbeiten hinzufügen",
-        "reconfigure": "Vorliebe zum Bearbeiten bearbeiten"
-      },
-      "entry_type": "Vorliebe zum Bearbeiten",
-      "step": {
-        "user": {
-          "title": "Neue Vorliebe zum Bearbeiten seines Partners",
-          "description": "Eine Vorliebe ist ein Name, den du bei einem Spielpartner auswählen kannst. Lege zuerst die Vorlieben an und wähle sie danach beim Spielpartner aus.",
-          "data": {
-            "name": "Name"
-          }
-        },
-        "reconfigure": {
-          "title": "Vorliebe zum Bearbeiten bearbeiten",
-          "description": "Beim Umbenennen ziehen alle Spielpartner mit, die diese Vorliebe gewählt haben.",
-          "data": {
-            "name": "Name"
-          }
-        }
-      },
-      "error": {
-        "name_taken": "Diese Vorliebe gibt es schon (oder der Name ist leer)."
-      },
-      "abort": {
-        "reconfigure_successful": "Gespeichert."
-      }
     }
   },
   "device": {
@@ -278,6 +220,15 @@
       },
       "folder": {
         "name": "Zielordner"
+      },
+      "preference": {
+        "state": {
+          "like": "Eigene Vorliebe",
+          "treat": "Vorliebe zum Bearbeiten"
+        }
+      },
+      "preference_count": {
+        "name": "{name} Zähler"
       }
     },
     "binary_sensor": {
@@ -291,6 +242,9 @@
     "switch": {
       "recording": {
         "name": "Aufnahme"
+      },
+      "preference_active": {
+        "name": "{name} dabei"
       }
     },
     "button": {

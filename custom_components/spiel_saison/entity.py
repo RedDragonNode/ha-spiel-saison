@@ -7,6 +7,7 @@ from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import Entity
 
+from . import logic
 from .const import DOMAIN
 from .manager import PartnerCfg, SpielSaisonManager
 
@@ -38,6 +39,22 @@ class PartnerEntity(SpielSaisonEntity):
     @property
     def partner(self) -> PartnerCfg:
         return self.manager.partners[self.sid]
+
+
+class PreferenceEntity(PartnerEntity):
+    """Entity einer Vorliebe am Gerät des Spielpartners. Neue Vorlieben im Profil bekommen sie beim Neuladen."""
+
+    def __init__(self, manager: SpielSaisonManager, partner: PartnerCfg, kind: str, name: str, role: str) -> None:
+        super().__init__(manager, partner, preference_unique_part(kind, name, role))
+        self.kind = kind
+        self.pref_name = name
+        self.pref_key = logic.preference_key(kind, name)
+        self._attr_translation_placeholders = {"name": name}
+
+
+def preference_unique_part(kind: str, name: str, role: str) -> str:
+    """Teil der eindeutigen ID einer Vorliebe-Entity (info, count oder active)."""
+    return f"pref_{kind}_{logic.norm(name)}_{role}"
 
 
 def hub_device(manager: SpielSaisonManager) -> DeviceInfo:
