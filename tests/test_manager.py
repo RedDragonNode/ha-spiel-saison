@@ -460,22 +460,27 @@ async def test_the_cover_positions_default_to_50_when_preparing_and_0_when_endin
     assert (runtime.prepare_step.cover_position, runtime.finish_step.cover_position) == (50, 0)
 
 
-async def test_prepare_moves_the_winch_to_the_position_of_the_chosen_place(hass, stream, cams, service_calls) -> None:
+async def test_prepare_moves_the_winch_first_to_the_position_of_configure_then_to_that_of_the_place(
+    hass, stream, cams, service_calls
+) -> None:
     options = {"prepare": {"cover": "cover.winde", "cover_position": 50}}
     entry = await _setup(
         hass,
-        [make_place("Schaukel", cover_position=30), make_place("Bett", cover_position=0), make_place("Dach")],
+        [
+            make_place("Schaukel", cover_position=30),
+            make_place("Bett", cover_position=0),
+            make_place("Dach"),
+            make_place("Hof", cover_position=50),
+        ],
         options=options,
     )
-    for place in ("Schaukel", "Bett", "Dach"):
+    for place in ("Schaukel", "Bett", "Dach", "Hof"):
+        service_calls.clear()
         await hass.services.async_call(DOMAIN, "prepare", {"partner": "Frank", "place": place}, blocking=True)
+        positions = [c.data["position"] for c in service_calls if c.service == "set_cover_position"]
+        assert positions == {"Schaukel": [50, 30], "Bett": [50, 0], "Dach": [50], "Hof": [50]}[place], place
 
-    assert _summary(service_calls) == [
-        ("cover", "set_cover_position", {"entity_id": "cover.winde", "position": 30}),
-        ("cover", "set_cover_position", {"entity_id": "cover.winde", "position": 0}),  # 0 ist eine Position
-        ("cover", "set_cover_position", {"entity_id": "cover.winde", "position": 50}),  # Dach hat keine eigene
-    ]
-    assert _runtime(entry).places["o_Dach"].cover_position is None
+    assert _runtime(entry).places["o_Dach"].cover_position is None  # keine Position ist nicht 0
 
 
 async def test_prepare_uses_the_position_of_the_place_that_is_selected(hass, stream, cams, service_calls) -> None:
@@ -486,7 +491,34 @@ async def test_prepare_uses_the_position_of_the_place_that_is_selected(hass, str
 
     await _prepare(hass)
 
-    assert _summary(service_calls) == [("cover", "set_cover_position", {"entity_id": "cover.winde", "position": 10})]
+    assert _summary(service_calls) == [
+        ("cover", "set_cover_position", {"entity_id": "cover.winde", "position": 50}),
+        ("cover", "set_cover_position", {"entity_id": "cover.winde", "position": 10}),
+    ]
+
+
+async def test_the_winch_waits_until_it_stands_before_it_goes_to_the_position_of_the_place(
+    hass, stream, cams, service_calls
+) -> None:
+    hass.states.async_set("cover.winde", "closed")
+    await _setup(hass, [make_place("Schaukel", cover_position=25)], options={"prepare": {"cover": "cover.winde"}})
+
+    async def record_and_drive(call: ServiceCall) -> None:  # wie die echte Winde: nach dem Befehl fährt sie
+        service_calls.append(call)
+        hass.states.async_set("cover.winde", "opening")
+
+    hass.services.async_remove("cover", "set_cover_position")
+    hass.services.async_register("cover", "set_cover_position", record_and_drive)
+
+    task = hass.async_create_background_task(_prepare(hass), "test prepare")
+    await asyncio.sleep(0.05)
+    assert [c.data["position"] for c in service_calls] == [50]  # die Winde fährt noch, die zweite Position wartet
+    assert not task.done()
+
+    hass.states.async_set("cover.winde", "open")  # sie steht
+    await task
+
+    assert [c.data["position"] for c in service_calls] == [50, 25]
 
 
 async def test_end_season_moves_the_cover_first_and_switches_the_winch_off_when_the_end_switch_is_on(

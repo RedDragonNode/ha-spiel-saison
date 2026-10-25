@@ -112,7 +112,7 @@
         },
         "user_cover": {
           "title": "Position der Winde",
-          "description": "Optional. Die Winde, die bei „Saison vorbereiten“ fährt, wählst du bei „Konfigurieren“ der Integration. Hier gibst du für diesen Ort die Position (0 bis 100 Prozent) an, auf die sie fährt, wenn der Ort gewählt ist und „Saison vorbereiten“ läuft. Lässt du das Feld leer, gilt die Position von „Konfigurieren“.",
+          "description": "Optional. Die Winde wählst du bei „Konfigurieren“ der Integration. „Saison vorbereiten“ fährt sie erst auf die Position von „Konfigurieren“ und, wenn dieser Ort gewählt ist, danach auf die Position, die du hier angibst (0 bis 100 Prozent). Lässt du das Feld leer, fährt sie nur auf die Position von „Konfigurieren“.",
           "data": {
             "cover_position": "Position der Winde bei „Saison vorbereiten“ (0 bis 100)"
           }
@@ -151,7 +151,7 @@
         },
         "reconfigure_cover": {
           "title": "Position der Winde",
-          "description": "Optional. Die Winde, die bei „Saison vorbereiten“ fährt, wählst du bei „Konfigurieren“ der Integration. Hier gibst du für diesen Ort die Position (0 bis 100 Prozent) an, auf die sie fährt, wenn der Ort gewählt ist und „Saison vorbereiten“ läuft. Lässt du das Feld leer, gilt die Position von „Konfigurieren“.",
+          "description": "Optional. Die Winde wählst du bei „Konfigurieren“ der Integration. „Saison vorbereiten“ fährt sie erst auf die Position von „Konfigurieren“ und, wenn dieser Ort gewählt ist, danach auf die Position, die du hier angibst (0 bis 100 Prozent). Lässt du das Feld leer, fährt sie nur auf die Position von „Konfigurieren“.",
           "data": {
             "cover_position": "Position der Winde bei „Saison vorbereiten“ (0 bis 100)"
           }
@@ -188,7 +188,7 @@
     "step": {
       "init": {
         "title": "Saison vorbereiten",
-        "description": "Gilt nur für die Taste „Saison vorbereiten“ und den gleichnamigen Dienst, für alle Spielpartner und Orte gleich, nicht für die Aufnahme. Alles ist optional. Du kannst Entities, Geräte, Bereiche oder Labels wählen, auch Szenen und Skripte. Die Taste schaltet erst die Ziele bei „Ausschalten“ aus, dann die bei „Einschalten“ ein, schaltet danach die Lichter ein und fährt zuletzt das Rollo, die Winde oder Ähnliches auf die Position. Die Position kannst du bei jedem Ort ändern, sie ersetzt hier die Position, wenn der Ort gewählt ist. Wählst du Lichter, folgt eine Seite für ihre Farbe und Helligkeit.",
+        "description": "Gilt nur für die Taste „Saison vorbereiten“ und den gleichnamigen Dienst, für alle Spielpartner und Orte gleich, nicht für die Aufnahme. Alles ist optional. Du kannst Entities, Geräte, Bereiche oder Labels wählen, auch Szenen und Skripte. Die Taste schaltet erst die Ziele bei „Ausschalten“ aus, dann die bei „Einschalten“ ein, schaltet danach die Lichter ein und fährt zuletzt das Rollo, die Winde oder Ähnliches auf die Position. Hat der gewählte Ort eine eigene Position, fährt die Winde danach noch dorthin. Wählst du Lichter, folgt eine Seite für ihre Farbe und Helligkeit.",
         "data": {
           "off": "Beim Vorbereiten ausschalten",
           "on": "Beim Vorbereiten einschalten",
@@ -352,7 +352,7 @@
         },
         "place": {
           "name": "Ort",
-          "description": "Name des Ortes dieses Spielpartners. Seine Winden-Position ersetzt die von „Konfigurieren“, und er füllt den Platzhalter „ort“ der Ordner-Muster. Ohne Angabe gilt der Ort, der am Gerät des Spielpartners gewählt ist."
+          "description": "Name des Ortes dieses Spielpartners. Die Winde fährt nach der Position von „Konfigurieren“ noch auf die Position dieses Ortes, und der Ort füllt den Platzhalter „ort“ der Ordner-Muster. Ohne Angabe gilt der Ort, der am Gerät des Spielpartners gewählt ist."
         }
       }
     },

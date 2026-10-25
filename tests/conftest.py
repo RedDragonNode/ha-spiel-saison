@@ -94,6 +94,12 @@ def fake_recorder() -> Generator[type[FakeRecorder]]:
         yield FakeRecorder
 
 
+@pytest.fixture(autouse=True)
+def no_winch_grace(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Die Tests warten nicht, ob eine Winde ohne Zustand noch losfährt."""
+    monkeypatch.setattr("custom_components.spiel_saison.manager.COVER_START_GRACE_S", 0)
+
+
 @pytest.fixture
 def stream() -> Generator[AsyncMock]:
     """Jede Kamera liefert eine Stream-Adresse."""

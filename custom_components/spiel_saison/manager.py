@@ -11,7 +11,7 @@ from typing import Any
 
 from homeassistant.components.camera import async_get_stream_source
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_NAME, STATE_ON
+from homeassistant.const import CONF_NAME, STATE_CLOSING, STATE_ON, STATE_OPENING
 from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import entity_registry as er
@@ -49,6 +49,8 @@ from .const import (
     CONF_START_ON,
     CONF_TREATS,
     COUNTED_KINDS,
+    COVER_MOVE_WAIT_S,
+    COVER_START_GRACE_S,
     CTRONICS_DOMAIN,
     DEFAULT_BASE_FOLDER,
     DEFAULT_COVER_POSITION,
@@ -141,6 +143,7 @@ class SeasonStep:
     after_off: dict[str, Any] = field(default_factory=dict)  # erst aus, wenn der Endschalter an ist (nur „beenden“)
     end_switch: str = ""
     wait_s: int = DEFAULT_END_SWITCH_WAIT
+    then_position: int | None = None  # danach fährt die Winde noch auf die Position des Ortes
 
 
 @dataclass
@@ -592,14 +595,48 @@ class SpielSaisonManager:
 
     @staticmethod
     def _with_place_position(step: SeasonStep, place: PlaceCfg | None) -> SeasonStep:
-        """Hat der gewählte Ort eine eigene Position, fährt die Winde von „Saison vorbereiten“ dorthin."""
-        if place is None or place.cover_position is None:
+        """Hat der gewählte Ort eine eigene Position, fährt die Winde von „Saison vorbereiten“ danach dorthin."""
+        if place is None or place.cover_position is None or not step.cover:
             return step
-        return replace(step, cover_position=place.cover_position)
+        return replace(step, then_position=place.cover_position)
 
     async def _move_cover(self, step: SeasonStep) -> None:
-        if step.cover:
-            await self._call("cover", "set_cover_position", {"entity_id": step.cover, "position": step.cover_position})
+        """Rollo oder Winde auf die Position von „Konfigurieren“ fahren, dann auf die des Ortes (falls er eine hat)."""
+        if not step.cover:
+            return
+        entity = {"entity_id": step.cover}
+        await self._call("cover", "set_cover_position", {**entity, "position": step.cover_position})
+        if step.then_position is not None and step.then_position != step.cover_position:
+            await self._wait_cover_stopped(step.cover)
+            await self._call("cover", "set_cover_position", {**entity, "position": step.then_position})
+
+    async def _wait_cover_stopped(self, entity_id: str) -> None:
+        """Wartet, bis die Winde steht (Zustand weder „opening“ noch „closing“), höchstens `COVER_MOVE_WAIT_S`."""
+
+        def moving() -> bool:
+            state = self.hass.states.get(entity_id)
+            return bool(state and state.state in (STATE_OPENING, STATE_CLOSING))
+
+        stopped = asyncio.Event()
+
+        @callback
+        def changed(_event: Event) -> None:
+            if not moving():
+                stopped.set()
+
+        unsub = async_track_state_change_event(self.hass, [entity_id], changed)
+        try:
+            if not moving():
+                await asyncio.sleep(COVER_START_GRACE_S)  # die Winde fährt vielleicht erst gleich los
+            if moving():
+                async with asyncio.timeout(COVER_MOVE_WAIT_S):
+                    await stopped.wait()
+        except TimeoutError:
+            _LOGGER.warning(
+                "%s fährt nach %s s noch, die nächste Position wird trotzdem angefahren", entity_id, COVER_MOVE_WAIT_S
+            )
+        finally:
+            unsub()
 
     async def _wait_until_on(self, entity_id: str, seconds: float) -> bool:
         """Wartet höchstens `seconds`, bis die Entity an ist. False, wenn sie es bis dahin nicht wurde."""

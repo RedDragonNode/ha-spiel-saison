@@ -112,7 +112,7 @@
         },
         "user_cover": {
           "title": "Position of the winch",
-          "description": "Optional. You choose the winch that moves for “Prepare season” under “Configure” of the integration. Here you give the position (0 to 100 percent) it moves to for this place when the place is chosen and “Prepare season” runs. If you leave the field empty, the position under “Configure” applies.",
+          "description": "Optional. You choose the winch under “Configure” of the integration. “Prepare season” first moves it to the position under “Configure” and, if this place is chosen, then to the position you give here (0 to 100 percent). If you leave the field empty, it only moves to the position under “Configure”.",
           "data": {
             "cover_position": "Position of the winch when preparing the season (0 to 100)"
           }
@@ -151,7 +151,7 @@
         },
         "reconfigure_cover": {
           "title": "Position of the winch",
-          "description": "Optional. You choose the winch that moves for “Prepare season” under “Configure” of the integration. Here you give the position (0 to 100 percent) it moves to for this place when the place is chosen and “Prepare season” runs. If you leave the field empty, the position under “Configure” applies.",
+          "description": "Optional. You choose the winch under “Configure” of the integration. “Prepare season” first moves it to the position under “Configure” and, if this place is chosen, then to the position you give here (0 to 100 percent). If you leave the field empty, it only moves to the position under “Configure”.",
           "data": {
             "cover_position": "Position of the winch when preparing the season (0 to 100)"
           }
@@ -188,7 +188,7 @@
     "step": {
       "init": {
         "title": "Prepare season",
-        "description": "Applies only to the “Prepare season” button and the service of the same name, the same for all play partners and places, not to the recording. Everything is optional. You can choose entities, devices, areas or labels, also scenes and scripts. The button turns off the targets under “Turn off” first, then turns on the ones under “Turn on”, then turns on the lights and finally moves the cover, winch or similar to the position. You can change the position at each place, it replaces the position here when that place is chosen. If you choose lights, a page for their colour and brightness follows.",
+        "description": "Applies only to the “Prepare season” button and the service of the same name, the same for all play partners and places, not to the recording. Everything is optional. You can choose entities, devices, areas or labels, also scenes and scripts. The button turns off the targets under “Turn off” first, then turns on the ones under “Turn on”, then turns on the lights and finally moves the cover, winch or similar to the position. If the chosen place has its own position, the winch then moves there as well. If you choose lights, a page for their colour and brightness follows.",
         "data": {
           "off": "Turn off when preparing",
           "on": "Turn on when preparing",
@@ -352,7 +352,7 @@
         },
         "place": {
           "name": "Place",
-          "description": "Name of a place of this play partner. Its winch position replaces the one under “Configure”, and it fills the placeholder “ort” of the folder patterns. Without it the place chosen on the play partner's device is used."
+          "description": "Name of a place of this play partner. The winch moves to the position of this place after the position under “Configure”, and the place fills the placeholder “ort” of the folder patterns. Without it the place chosen on the play partner's device is used."
         }
       }
     },

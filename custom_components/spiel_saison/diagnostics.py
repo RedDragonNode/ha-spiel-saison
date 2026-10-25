@@ -30,6 +30,7 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: SpielSa
         "message": m.message,
         "partners": [asdict(p) for p in m.partners.values()],
         "places": [asdict(p) for p in m.places.values()],
+        "season_steps": {"prepare": asdict(m.prepare_step), "finish": asdict(m.finish_step)},
         "selected_places": dict(m.place_ids),
         "counters": {sid: asdict(s) for sid, s in m.states.items()},
         "runs": {sid: {k: v for k, v in run.items() if k != "session"} for sid, run in m.runs.items()},

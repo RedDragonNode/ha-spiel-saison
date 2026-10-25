@@ -274,10 +274,17 @@ async def test_the_folder_sensor_shows_the_next_folder(hass: HomeAssistant) -> N
 async def test_diagnostics_hide_the_key(hass: HomeAssistant) -> None:
     from custom_components.spiel_saison.diagnostics import async_get_config_entry_diagnostics
 
-    entry = await _setup(hass, [make_place("Bett")])
+    options = {
+        "prepare": {"cover": "cover.winde", "lights": {"light.decke": {"rgb": [255, 0, 0], "brightness": 25}}},
+        "finish": {"end_switch": "binary_sensor.oben"},
+    }
+    entry = await _setup(hass, [make_place("Bett")], options=options)
 
     data = await async_get_config_entry_diagnostics(hass, entry)
 
+    assert data["season_steps"]["prepare"]["lights"] == {"light.decke": {"rgb": [255, 0, 0], "brightness": 25}}
+    assert data["season_steps"]["prepare"]["cover"] == "cover.winde"
+    assert data["season_steps"]["finish"]["end_switch"] == "binary_sensor.oben"
     assert data["entry"]["recorder_key"] == "**REDACTED**"
     assert data["partners"][0]["name"] == "Frank"
     assert data["places"][0]["name"] == "Bett"
