@@ -1,0 +1,330 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Spiel Saison",
+        "description": "Connection to the app “Spiel Saison Recorder” and the folder of the recordings. The address is shown on the app page under “Info → Hostname”, the key is the `api_key` from the app settings. Recordings go into the app folder under: base folder / folder per play partner / folder per season / file per camera. In the patterns you can use the placeholders partner, nr, saison, aufnahme, cam, cam_nr and ort, each in curly braces (cam and cam_nr only in the file name), plus date and time with %CCYY %MM %DD %hh %mm %ss.",
+        "data": {
+          "recorder_url": "App address",
+          "recorder_key": "Key (api_key)",
+          "base_folder": "Base folder (e.g. Play/Special)",
+          "partner_pattern": "Folder per play partner",
+          "season_pattern": "Folder per season (date = start of the season)",
+          "file_pattern": "File name per camera"
+        }
+      },
+      "reconfigure": {
+        "title": "Change connection and folders",
+        "description": "New folder patterns apply from the next recording. Existing recordings stay where they are. Placeholders as during setup: partner, nr, saison, aufnahme, cam, cam_nr and ort, each in curly braces, plus date and time with %CCYY %MM %DD %hh %mm %ss.",
+        "data": {
+          "recorder_url": "App address",
+          "recorder_key": "Key (api_key)",
+          "base_folder": "Base folder (e.g. Play/Special)",
+          "partner_pattern": "Folder per play partner",
+          "season_pattern": "Folder per season (date = start of the season)",
+          "file_pattern": "File name per camera"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Renew key",
+        "description": "The app rejects the key. Please enter the current `api_key` from the app settings.",
+        "data": {
+          "recorder_key": "Key (api_key)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "The app cannot be reached at this address. Is it running, and is the hostname correct?",
+      "invalid_auth": "The key does not match the `api_key` of the app."
+    },
+    "abort": {
+      "single_instance_allowed": "Spiel Saison is already set up.",
+      "reconfigure_successful": "Saved.",
+      "reauth_successful": "The new key is saved."
+    }
+  },
+  "config_subentries": {
+    "partner": {
+      "initiate_flow": {
+        "user": "Add play partner",
+        "reconfigure": "Edit play partner"
+      },
+      "entry_type": "Play partner",
+      "step": {
+        "user": {
+          "title": "New play partner",
+          "description": "Every play partner has their own seasons, counters and folder. Their cameras are fixed, and the same camera may belong to several play partners. It never records for two of them at the same time. The number appears in the folder and the file name, for example as 02.",
+          "data": {
+            "name": "Name",
+            "number": "Number",
+            "cams": "Cameras"
+          }
+        },
+        "reconfigure": {
+          "title": "Edit play partner",
+          "description": "Change name, number and cameras. Counters and season are kept. Existing recordings stay in their folder, new ones go to the folder with the changed name.",
+          "data": {
+            "name": "Name",
+            "number": "Number",
+            "cams": "Cameras"
+          }
+        }
+      },
+      "error": {
+        "name_taken": "This name already exists (or is empty).",
+        "number_taken": "Another play partner already has this number.",
+        "cams_required": "Please choose at least one camera."
+      },
+      "abort": {
+        "reconfigure_successful": "Saved."
+      }
+    },
+    "place": {
+      "initiate_flow": {
+        "user": "Add place",
+        "reconfigure": "Edit place"
+      },
+      "entry_type": "Place",
+      "step": {
+        "user": {
+          "title": "New place",
+          "description": "A place is where you play, for example bed or swing. On start the integration moves the Ctronics cameras to the preset of the place (0 = do not move), switches lights and devices, optionally makes an announcement and waits for the lead time before the recording begins. On end it waits for the pause and puts everything back. The next step lets you choose what is switched.",
+          "data": {
+            "name": "Name",
+            "ptz_preset": "PTZ preset of the Ctronics cameras (0 = do not move)",
+            "lead_seconds": "Lead time between start and recording",
+            "end_seconds": "Pause between end of recording and end step",
+            "announce_entity": "Announce via (notify entity, e.g. Alexa)",
+            "announce_start": "Announcement on start",
+            "announce_end": "Announcement on end"
+          }
+        },
+        "user_begin": {
+          "title": "Prepare and start",
+          "description": "Everything is optional. You can choose entities, devices, areas or labels, also scenes and scripts. “Prepare” runs when you press the “Prepare” button. The cover, winch or similar moves to the position then. On start the targets under “Turn off” are turned off first, then the ones under “Turn on” are turned on.",
+          "data": {
+            "prepare_on": "Turn on when preparing",
+            "cover": "Move when preparing (cover, winch)",
+            "cover_position": "Position (0 to 100)",
+            "start_off": "Turn off on start",
+            "start_on": "Turn on on start"
+          }
+        },
+        "user_end": {
+          "title": "End",
+          "description": "Everything is optional. After the pause the targets under “Turn off” are turned off first, then the ones under “Turn on” are turned on. Only the “Save place” button saves the place.",
+          "data": {
+            "end_off": "Turn off on end",
+            "end_on": "Turn on on end"
+          },
+          "submit": "Save place"
+        },
+        "reconfigure": {
+          "title": "Edit place",
+          "description": "Change the settings of the place. The next step has the targets that are switched.",
+          "data": {
+            "name": "Name",
+            "ptz_preset": "PTZ preset of the Ctronics cameras (0 = do not move)",
+            "lead_seconds": "Lead time between start and recording",
+            "end_seconds": "Pause between end of recording and end step",
+            "announce_entity": "Announce via (notify entity, e.g. Alexa)",
+            "announce_start": "Announcement on start",
+            "announce_end": "Announcement on end"
+          }
+        },
+        "reconfigure_begin": {
+          "title": "Prepare and start",
+          "description": "Everything is optional. On start the targets under “Turn off” are turned off first, then the ones under “Turn on” are turned on.",
+          "data": {
+            "prepare_on": "Turn on when preparing",
+            "cover": "Move when preparing (cover, winch)",
+            "cover_position": "Position (0 to 100)",
+            "start_off": "Turn off on start",
+            "start_on": "Turn on on start"
+          }
+        },
+        "reconfigure_end": {
+          "title": "End",
+          "description": "Everything is optional. Only the “Save place” button saves the changes.",
+          "data": {
+            "end_off": "Turn off on end",
+            "end_on": "Turn on on end"
+          },
+          "submit": "Save place"
+        }
+      },
+      "error": {
+        "name_taken": "This name already exists (or is empty)."
+      },
+      "abort": {
+        "reconfigure_successful": "Saved."
+      }
+    }
+  },
+  "device": {
+    "partner": {
+      "name": "Play partner {name}"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "status": {
+        "name": "Status",
+        "state": {
+          "idle": "Ready",
+          "recording": "Recording",
+          "error": "Error"
+        }
+      },
+      "current_partner": {
+        "name": "Current play partner"
+      },
+      "recorder_free_space": {
+        "name": "Recorder: free space"
+      },
+      "partner_status": {
+        "name": "Status",
+        "state": {
+          "idle": "Ready",
+          "starting": "Starting",
+          "recording": "Recording",
+          "stopping": "Stopping"
+        }
+      },
+      "duration_season": {
+        "name": "Recording time in season"
+      },
+      "duration_total": {
+        "name": "Recording time total"
+      },
+      "longest_season": {
+        "name": "Longest recording in season"
+      },
+      "last_recording": {
+        "name": "Last recording"
+      },
+      "folder": {
+        "name": "Target folder"
+      }
+    },
+    "binary_sensor": {
+      "recorder_online": {
+        "name": "Recorder reachable"
+      },
+      "recording": {
+        "name": "Recording"
+      }
+    },
+    "switch": {
+      "recording": {
+        "name": "Recording"
+      }
+    },
+    "button": {
+      "prepare": {
+        "name": "Prepare"
+      },
+      "new_season": {
+        "name": "Start new season"
+      }
+    },
+    "number": {
+      "season": {
+        "name": "Season"
+      },
+      "recordings_season": {
+        "name": "Recordings in season"
+      },
+      "recordings_total": {
+        "name": "Recordings total"
+      }
+    },
+    "select": {
+      "place": {
+        "name": "Place"
+      }
+    }
+  },
+  "services": {
+    "start_recording": {
+      "name": "Start recording",
+      "description": "Starts the recording of a play partner: start step of the place, lead time, then the recording.",
+      "fields": {
+        "partner": {
+          "name": "Play partner",
+          "description": "Name of the play partner."
+        },
+        "place": {
+          "name": "Place",
+          "description": "Name of the place. Without it the selected place is used."
+        }
+      }
+    },
+    "stop_recording": {
+      "name": "Stop recording",
+      "description": "Stops the recording of a play partner and then runs the end step of the place.",
+      "fields": {
+        "partner": {
+          "name": "Play partner",
+          "description": "Name of the play partner."
+        }
+      }
+    },
+    "prepare": {
+      "name": "Prepare place",
+      "description": "Turns on the targets for preparing the place and moves the cover or winch, without recording.",
+      "fields": {
+        "partner": {
+          "name": "Play partner",
+          "description": "Name of the play partner."
+        },
+        "place": {
+          "name": "Place",
+          "description": "Name of the place. Without it the selected place is used."
+        }
+      }
+    },
+    "new_season": {
+      "name": "Start new season",
+      "description": "Raises the season number of a play partner and resets the counters and the statistics of the season.",
+      "fields": {
+        "partner": {
+          "name": "Play partner",
+          "description": "Name of the play partner."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "not_loaded": {
+      "message": "Spiel Saison is not set up or not loaded."
+    },
+    "partner_not_found": {
+      "message": "There is no play partner “{partner}”."
+    },
+    "place_not_found": {
+      "message": "There is no place “{place}”."
+    },
+    "no_place": {
+      "message": "No place has been added yet. Please add a place under Spiel Saison."
+    },
+    "no_cam_available": {
+      "message": "Play partner {partner}: no camera free or without a stream source ({details})."
+    },
+    "recorder_not_configured": {
+      "message": "Address and key of the app are missing. Please enter them under “Change connection and folders”."
+    },
+    "recording_running": {
+      "message": "A recording is running for {partner}. A new season is possible only afterwards."
+    },
+    "still_stopping": {
+      "message": "The end step is still running for {partner}. Please wait a moment."
+    }
+  },
+  "issues": {
+    "recording_lost": {
+      "title": "Recording ended unexpectedly",
+      "description": "The recorder ended the recording of {partner}. Reason: {reason}. You can restart it with the “Recording” switch of the play partner."
+    }
+  }
+}

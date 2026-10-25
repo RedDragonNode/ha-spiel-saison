@@ -1,0 +1,330 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Spiel Saison",
+        "description": "Verbindung zur App „Spiel Saison Recorder“ und Ordner der Aufnahmen. Die Adresse zeigt die Seite der App unter „Info → Hostname“, der Schlüssel ist der `api_key` aus den App-Einstellungen. Die Aufnahmen landen im Ordner der App unter: Basis-Ordner / Ordner je Spielpartner / Ordner je Saison / Datei je Kamera. In den Mustern kannst du die Platzhalter partner, nr, saison, aufnahme, cam, cam_nr und ort jeweils in geschweiften Klammern verwenden (cam und cam_nr nur im Dateinamen), dazu Datum und Zeit mit %CCYY %MM %DD %hh %mm %ss.",
+        "data": {
+          "recorder_url": "Adresse der App",
+          "recorder_key": "Schlüssel (api_key)",
+          "base_folder": "Basis-Ordner (z. B. Spielen/Spezial)",
+          "partner_pattern": "Ordner je Spielpartner",
+          "season_pattern": "Ordner je Saison (Datum = Beginn der Saison)",
+          "file_pattern": "Dateiname je Kamera"
+        }
+      },
+      "reconfigure": {
+        "title": "Verbindung und Ordner ändern",
+        "description": "Neue Ordner-Muster gelten ab der nächsten Aufnahme. Schon vorhandene Aufnahmen bleiben, wo sie sind. Platzhalter wie beim Einrichten: partner, nr, saison, aufnahme, cam, cam_nr und ort jeweils in geschweiften Klammern, dazu Datum und Zeit mit %CCYY %MM %DD %hh %mm %ss.",
+        "data": {
+          "recorder_url": "Adresse der App",
+          "recorder_key": "Schlüssel (api_key)",
+          "base_folder": "Basis-Ordner (z. B. Spielen/Spezial)",
+          "partner_pattern": "Ordner je Spielpartner",
+          "season_pattern": "Ordner je Saison (Datum = Beginn der Saison)",
+          "file_pattern": "Dateiname je Kamera"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Schlüssel erneuern",
+        "description": "Die App lehnt den Schlüssel ab. Bitte den aktuellen `api_key` aus den App-Einstellungen eintragen.",
+        "data": {
+          "recorder_key": "Schlüssel (api_key)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Die App ist unter dieser Adresse nicht erreichbar. Läuft sie, und stimmt der Hostname?",
+      "invalid_auth": "Der Schlüssel stimmt nicht mit dem `api_key` der App überein."
+    },
+    "abort": {
+      "single_instance_allowed": "Spiel Saison ist schon eingerichtet.",
+      "reconfigure_successful": "Gespeichert.",
+      "reauth_successful": "Der neue Schlüssel ist gespeichert."
+    }
+  },
+  "config_subentries": {
+    "partner": {
+      "initiate_flow": {
+        "user": "Spielpartner hinzufügen",
+        "reconfigure": "Spielpartner bearbeiten"
+      },
+      "entry_type": "Spielpartner",
+      "step": {
+        "user": {
+          "title": "Neuer Spielpartner",
+          "description": "Jeder Spielpartner hat eigene Saisons, Zähler und einen eigenen Ordner. Seine Kameras sind fest eingestellt, und dieselbe Kamera darf bei mehreren Spielpartnern stehen. Sie nimmt aber nie bei zwei Spielpartnern gleichzeitig auf. Die Nummer erscheint im Ordner und im Dateinamen, zum Beispiel als 02.",
+          "data": {
+            "name": "Name",
+            "number": "Nummer",
+            "cams": "Kameras"
+          }
+        },
+        "reconfigure": {
+          "title": "Spielpartner bearbeiten",
+          "description": "Name, Nummer und Kameras ändern. Zähler und Saison bleiben erhalten. Schon vorhandene Aufnahmen bleiben in ihrem Ordner, neue gehen in den Ordner mit dem geänderten Namen.",
+          "data": {
+            "name": "Name",
+            "number": "Nummer",
+            "cams": "Kameras"
+          }
+        }
+      },
+      "error": {
+        "name_taken": "Diesen Namen gibt es schon (oder er ist leer).",
+        "number_taken": "Diese Nummer hat schon ein anderer Spielpartner.",
+        "cams_required": "Bitte mindestens eine Kamera wählen."
+      },
+      "abort": {
+        "reconfigure_successful": "Gespeichert."
+      }
+    },
+    "place": {
+      "initiate_flow": {
+        "user": "Ort hinzufügen",
+        "reconfigure": "Ort bearbeiten"
+      },
+      "entry_type": "Ort",
+      "step": {
+        "user": {
+          "title": "Neuer Ort",
+          "description": "Ein Ort ist ein Platz, an dem gespielt wird, zum Beispiel Bett oder Schaukel. Beim Start fährt die Integration die Ctronics-Kameras auf die Voreinstellung des Ortes (0 = nicht bewegen), schaltet Licht und Geräte, sagt optional etwas an und wartet den Vorlauf ab, bevor die Aufnahme beginnt. Beim Ende wartet sie die Pause ab und stellt alles zurück. Im nächsten Schritt wählst du, was geschaltet wird.",
+          "data": {
+            "name": "Name",
+            "ptz_preset": "PTZ-Voreinstellung der Ctronics-Kameras (0 = nicht bewegen)",
+            "lead_seconds": "Vorlauf zwischen Beginn und Aufnahme",
+            "end_seconds": "Pause zwischen Aufnahme-Ende und Ende-Schritt",
+            "announce_entity": "Ansage über (notify-Entity, z. B. Alexa)",
+            "announce_start": "Ansage beim Start",
+            "announce_end": "Ansage beim Ende"
+          }
+        },
+        "user_begin": {
+          "title": "Vorbereiten und Beginn",
+          "description": "Alles ist optional. Du kannst Entities, Geräte, Bereiche oder Labels wählen, auch Szenen und Skripte. „Vorbereiten“ läuft, wenn du die Taste „Vorbereiten“ drückst. Das Rollo, die Winde oder Ähnliches fährt dabei auf die Position. Zum Beginn werden erst die Ziele bei „Ausschalten“ ausgeschaltet und dann die bei „Einschalten“ eingeschaltet.",
+          "data": {
+            "prepare_on": "Beim Vorbereiten einschalten",
+            "cover": "Beim Vorbereiten fahren (Rollo, Winde)",
+            "cover_position": "Position (0 bis 100)",
+            "start_off": "Beim Beginn ausschalten",
+            "start_on": "Beim Beginn einschalten"
+          }
+        },
+        "user_end": {
+          "title": "Ende",
+          "description": "Alles ist optional. Nach der Pause werden erst die Ziele bei „Ausschalten“ ausgeschaltet und dann die bei „Einschalten“ eingeschaltet. Erst die Schaltfläche „Ort speichern“ speichert den Ort.",
+          "data": {
+            "end_off": "Beim Ende ausschalten",
+            "end_on": "Beim Ende einschalten"
+          },
+          "submit": "Ort speichern"
+        },
+        "reconfigure": {
+          "title": "Ort bearbeiten",
+          "description": "Ändere die Einstellungen des Ortes. Im nächsten Schritt stehen die Ziele, die geschaltet werden.",
+          "data": {
+            "name": "Name",
+            "ptz_preset": "PTZ-Voreinstellung der Ctronics-Kameras (0 = nicht bewegen)",
+            "lead_seconds": "Vorlauf zwischen Beginn und Aufnahme",
+            "end_seconds": "Pause zwischen Aufnahme-Ende und Ende-Schritt",
+            "announce_entity": "Ansage über (notify-Entity, z. B. Alexa)",
+            "announce_start": "Ansage beim Start",
+            "announce_end": "Ansage beim Ende"
+          }
+        },
+        "reconfigure_begin": {
+          "title": "Vorbereiten und Beginn",
+          "description": "Alles ist optional. Zum Beginn werden erst die Ziele bei „Ausschalten“ ausgeschaltet und dann die bei „Einschalten“ eingeschaltet.",
+          "data": {
+            "prepare_on": "Beim Vorbereiten einschalten",
+            "cover": "Beim Vorbereiten fahren (Rollo, Winde)",
+            "cover_position": "Position (0 bis 100)",
+            "start_off": "Beim Beginn ausschalten",
+            "start_on": "Beim Beginn einschalten"
+          }
+        },
+        "reconfigure_end": {
+          "title": "Ende",
+          "description": "Alles ist optional. Erst die Schaltfläche „Ort speichern“ speichert die Änderungen.",
+          "data": {
+            "end_off": "Beim Ende ausschalten",
+            "end_on": "Beim Ende einschalten"
+          },
+          "submit": "Ort speichern"
+        }
+      },
+      "error": {
+        "name_taken": "Diesen Namen gibt es schon (oder er ist leer)."
+      },
+      "abort": {
+        "reconfigure_successful": "Gespeichert."
+      }
+    }
+  },
+  "device": {
+    "partner": {
+      "name": "Spielpartner {name}"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "status": {
+        "name": "Status",
+        "state": {
+          "idle": "Bereit",
+          "recording": "Nimmt auf",
+          "error": "Fehler"
+        }
+      },
+      "current_partner": {
+        "name": "Aktueller Spielpartner"
+      },
+      "recorder_free_space": {
+        "name": "Recorder: freier Speicher"
+      },
+      "partner_status": {
+        "name": "Status",
+        "state": {
+          "idle": "Bereit",
+          "starting": "Startet",
+          "recording": "Nimmt auf",
+          "stopping": "Beendet"
+        }
+      },
+      "duration_season": {
+        "name": "Aufnahmedauer in Saison"
+      },
+      "duration_total": {
+        "name": "Aufnahmedauer gesamt"
+      },
+      "longest_season": {
+        "name": "Längste Aufnahme in Saison"
+      },
+      "last_recording": {
+        "name": "Letzte Aufnahme"
+      },
+      "folder": {
+        "name": "Zielordner"
+      }
+    },
+    "binary_sensor": {
+      "recorder_online": {
+        "name": "Recorder erreichbar"
+      },
+      "recording": {
+        "name": "Aufnahme"
+      }
+    },
+    "switch": {
+      "recording": {
+        "name": "Aufnahme"
+      }
+    },
+    "button": {
+      "prepare": {
+        "name": "Vorbereiten"
+      },
+      "new_season": {
+        "name": "Neue Saison beginnen"
+      }
+    },
+    "number": {
+      "season": {
+        "name": "Saison"
+      },
+      "recordings_season": {
+        "name": "Aufnahmen in Saison"
+      },
+      "recordings_total": {
+        "name": "Aufnahmen gesamt"
+      }
+    },
+    "select": {
+      "place": {
+        "name": "Ort"
+      }
+    }
+  },
+  "services": {
+    "start_recording": {
+      "name": "Aufnahme starten",
+      "description": "Startet die Aufnahme eines Spielpartners: Beginn-Schritt des Ortes, Vorlauf, dann die Aufnahme.",
+      "fields": {
+        "partner": {
+          "name": "Spielpartner",
+          "description": "Name des Spielpartners."
+        },
+        "place": {
+          "name": "Ort",
+          "description": "Name des Ortes. Ohne Angabe gilt der gewählte Ort."
+        }
+      }
+    },
+    "stop_recording": {
+      "name": "Aufnahme beenden",
+      "description": "Beendet die Aufnahme eines Spielpartners und führt danach den Ende-Schritt des Ortes aus.",
+      "fields": {
+        "partner": {
+          "name": "Spielpartner",
+          "description": "Name des Spielpartners."
+        }
+      }
+    },
+    "prepare": {
+      "name": "Ort vorbereiten",
+      "description": "Schaltet die Ziele zum Vorbereiten des Ortes ein und fährt das Rollo oder die Winde, ohne aufzunehmen.",
+      "fields": {
+        "partner": {
+          "name": "Spielpartner",
+          "description": "Name des Spielpartners."
+        },
+        "place": {
+          "name": "Ort",
+          "description": "Name des Ortes. Ohne Angabe gilt der gewählte Ort."
+        }
+      }
+    },
+    "new_season": {
+      "name": "Neue Saison beginnen",
+      "description": "Erhöht die Saison-Nummer eines Spielpartners und setzt die Zähler und die Auswertung der Saison auf null.",
+      "fields": {
+        "partner": {
+          "name": "Spielpartner",
+          "description": "Name des Spielpartners."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "not_loaded": {
+      "message": "Spiel Saison ist nicht eingerichtet oder nicht geladen."
+    },
+    "partner_not_found": {
+      "message": "Den Spielpartner „{partner}“ gibt es nicht."
+    },
+    "place_not_found": {
+      "message": "Den Ort „{place}“ gibt es nicht."
+    },
+    "no_place": {
+      "message": "Es ist noch kein Ort angelegt. Bitte unter Spiel Saison einen Ort hinzufügen."
+    },
+    "no_cam_available": {
+      "message": "Spielpartner {partner}: keine Kamera frei oder ohne Stream-Quelle ({details})."
+    },
+    "recorder_not_configured": {
+      "message": "Adresse und Schlüssel der App fehlen. Bitte unter „Verbindung und Ordner ändern“ eintragen."
+    },
+    "recording_running": {
+      "message": "Bei {partner} läuft eine Aufnahme. Eine neue Saison geht erst danach."
+    },
+    "still_stopping": {
+      "message": "Bei {partner} läuft noch der Ende-Schritt. Bitte kurz warten."
+    }
+  },
+  "issues": {
+    "recording_lost": {
+      "title": "Aufnahme unerwartet beendet",
+      "description": "Der Recorder hat die Aufnahme von {partner} beendet. Grund: {reason}. Du kannst sie mit dem Schalter „Aufnahme“ des Spielpartners neu starten."
+    }
+  }
+}

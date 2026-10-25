@@ -1,0 +1,14 @@
+{
+  "domain": "spiel_saison",
+  "name": "Spiel Saison",
+  "codeowners": ["@RedDragonNode"],
+  "config_flow": true,
+  "dependencies": ["camera"],
+  "documentation": "https://github.com/RedDragonNode/ha-spiel-saison",
+  "integration_type": "service",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/RedDragonNode/ha-spiel-saison/issues",
+  "requirements": [],
+  "single_config_entry": true,
+  "version": "0.1.0"
+}

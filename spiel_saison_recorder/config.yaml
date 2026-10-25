@@ -1,0 +1,33 @@
+name: Spiel Saison Recorder
+version: "0.1.0"
+slug: spiel_saison_recorder
+description: Schreibt die RTSP-Streams der Kameras per Stream-Copy (ohne Neukodierung) auf die Platte.
+url: https://github.com/RedDragonNode/ha-spiel-saison
+arch:
+  - amd64
+  - aarch64
+init: false
+startup: services
+boot: auto
+map:
+  - media:rw
+options:
+  api_key: ""
+  aufnahme_ordner: /media/Aufnahmen
+  container: mp4
+  audio: aac
+  stillstand_sekunden: 20
+  mindest_frei_gb: 20
+  wallclock_zeitstempel: false
+  video_tag: ""
+  ffmpeg_loglevel: warning
+schema:
+  api_key: password
+  aufnahme_ordner: str
+  container: list(mp4|mkv)
+  audio: list(aac|copy|none)
+  stillstand_sekunden: int(5,300)
+  mindest_frei_gb: float(1,)
+  wallclock_zeitstempel: bool
+  video_tag: list(|hvc1)?
+  ffmpeg_loglevel: list(warning|info|verbose)?
