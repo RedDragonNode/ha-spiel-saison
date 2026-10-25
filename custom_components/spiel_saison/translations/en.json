@@ -53,27 +53,30 @@
       "step": {
         "user": {
           "title": "New play partner",
-          "description": "Every play partner has their own seasons, counters and folder. Their cameras are fixed, and the same camera may belong to several play partners. It never records for two of them at the same time. The number appears in the folder and the file name, for example as 02.",
+          "description": "Every play partner has their own seasons, counters and folder. The cameras belong to the places you add for them afterwards. The number appears in the folder and the file name, for example as 02. The announcement is optional: it goes through a notify entity, for example an Echo, when a recording starts and ends.",
           "data": {
             "name": "Name",
             "number": "Number",
-            "cams": "Cameras"
+            "announce_entity": "Announce via (notify entity, e.g. Alexa)",
+            "announce_start": "Announcement on start",
+            "announce_end": "Announcement on end"
           }
         },
         "reconfigure": {
           "title": "Edit play partner",
-          "description": "Change name, number and cameras. Counters and season are kept. Existing recordings stay in their folder, new ones go to the folder with the changed name.",
+          "description": "Change name, number and announcement. Counters and season are kept. Existing recordings stay in their folder, new ones go to the folder with the changed name. The cameras are set at the places.",
           "data": {
             "name": "Name",
             "number": "Number",
-            "cams": "Cameras"
+            "announce_entity": "Announce via (notify entity, e.g. Alexa)",
+            "announce_start": "Announcement on start",
+            "announce_end": "Announcement on end"
           }
         }
       },
       "error": {
         "name_taken": "This name already exists (or is empty).",
-        "number_taken": "Another play partner already has this number.",
-        "cams_required": "Please choose at least one camera."
+        "number_taken": "Another play partner already has this number."
       },
       "abort": {
         "reconfigure_successful": "Saved."
@@ -88,16 +91,18 @@
       "step": {
         "user": {
           "title": "New place",
-          "description": "A place is where you play, for example bed or swing. On start the integration moves the Ctronics cameras to the preset of the place (0 = do not move), switches lights and devices, optionally makes an announcement and waits for the lead time before the recording begins. On end it waits for the pause and puts everything back. The next step lets you choose what is switched.",
+          "description": "A place is where a play partner plays, for example bed or swing. It brings the cameras that record there. On start the integration moves the Ctronics cameras to their PTZ position, switches lights and devices and waits for the lead time before the recording begins. On end it waits for the pause and puts everything back. The next step lets you choose the PTZ position of each Ctronics camera, then what is switched.",
           "data": {
             "name": "Name",
-            "ptz_preset": "PTZ preset of the Ctronics cameras (0 = do not move)",
+            "partner": "Play partner",
+            "cams": "Cameras",
             "lead_seconds": "Lead time between start and recording",
-            "end_seconds": "Pause between end of recording and end step",
-            "announce_entity": "Announce via (notify entity, e.g. Alexa)",
-            "announce_start": "Announcement on start",
-            "announce_end": "Announcement on end"
+            "end_seconds": "Pause between end of recording and end step"
           }
+        },
+        "user_ptz": {
+          "title": "PTZ position per camera",
+          "description": "For each Ctronics camera of this place you choose the stored position it moves to on start. The names come from the options of the Ctronics 4K Cam integration. Without names the numbers 1 to 64 are offered. “Do not move” leaves the camera where it is. Other cameras are not moved and do not appear here."
         },
         "user_begin": {
           "title": "Prepare and start",
@@ -121,16 +126,18 @@
         },
         "reconfigure": {
           "title": "Edit place",
-          "description": "Change the settings of the place. The next step has the targets that are switched.",
+          "description": "Change the settings of the place. The next step has the PTZ positions of the cameras, then the targets that are switched.",
           "data": {
             "name": "Name",
-            "ptz_preset": "PTZ preset of the Ctronics cameras (0 = do not move)",
+            "partner": "Play partner",
+            "cams": "Cameras",
             "lead_seconds": "Lead time between start and recording",
-            "end_seconds": "Pause between end of recording and end step",
-            "announce_entity": "Announce via (notify entity, e.g. Alexa)",
-            "announce_start": "Announcement on start",
-            "announce_end": "Announcement on end"
+            "end_seconds": "Pause between end of recording and end step"
           }
+        },
+        "reconfigure_ptz": {
+          "title": "PTZ position per camera",
+          "description": "For each Ctronics camera of this place you choose the stored position it moves to on start. The names come from the options of the Ctronics 4K Cam integration. Without names the numbers 1 to 64 are offered. “Do not move” leaves the camera where it is. Other cameras are not moved and do not appear here."
         },
         "reconfigure_begin": {
           "title": "Prepare and start",
@@ -154,9 +161,11 @@
         }
       },
       "error": {
-        "name_taken": "This name already exists (or is empty)."
+        "name_taken": "This name already exists for this play partner (or is empty).",
+        "cams_required": "Please choose at least one camera."
       },
       "abort": {
+        "no_partner": "Please add a play partner first. A place always belongs to a play partner.",
         "reconfigure_successful": "Saved."
       }
     }
@@ -256,7 +265,7 @@
         },
         "place": {
           "name": "Place",
-          "description": "Name of the place. Without it the selected place is used."
+          "description": "Name of the place of this play partner. Without it the place chosen on the play partner's device is used."
         }
       }
     },
@@ -280,7 +289,7 @@
         },
         "place": {
           "name": "Place",
-          "description": "Name of the place. Without it the selected place is used."
+          "description": "Name of the place of this play partner. Without it the place chosen on the play partner's device is used."
         }
       }
     },
@@ -306,7 +315,7 @@
       "message": "There is no place “{place}”."
     },
     "no_place": {
-      "message": "No place has been added yet. Please add a place under Spiel Saison."
+      "message": "No place has been added for {partner} yet. Please add a place with its cameras under Spiel Saison."
     },
     "no_cam_available": {
       "message": "Play partner {partner}: no camera free or without a stream source ({details})."

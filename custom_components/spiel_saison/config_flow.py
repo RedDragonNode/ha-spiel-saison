@@ -19,11 +19,13 @@ from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from . import logic
+from .cams import cam_name, ctronics_presets, preset_options
 from .const import (
     CONF_ANNOUNCE_END,
     CONF_ANNOUNCE_ENTITY,
     CONF_ANNOUNCE_START,
     CONF_BASE_FOLDER,
+    CONF_CAM_PRESETS,
     CONF_CAMS,
     CONF_COVER,
     CONF_COVER_POSITION,
@@ -33,9 +35,9 @@ from .const import (
     CONF_FILE_PATTERN,
     CONF_LEAD_SECONDS,
     CONF_NUMBER,
+    CONF_PARTNER,
     CONF_PARTNER_PATTERN,
     CONF_PREPARE_ON,
-    CONF_PTZ_PRESET,
     CONF_RECORDER_KEY,
     CONF_RECORDER_URL,
     CONF_SEASON_PATTERN,
@@ -104,7 +106,7 @@ async def _check_recorder(hass: HomeAssistant, url: str, key: str) -> str | None
 # ------------------------------------------------------------------ Verbindung
 class SpielSaisonConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
-    MINOR_VERSION = 2
+    MINOR_VERSION = 3
 
     async def _connection_step(
         self, step_id: str, user_input: dict[str, Any] | None, current: Mapping[str, Any]
@@ -166,7 +168,7 @@ class SpielSaisonConfigFlow(ConfigFlow, domain=DOMAIN):
 
 # ----------------------------------------------------------------- Spielpartner
 class PartnerSubentryFlow(ConfigSubentryFlow):
-    """Spielpartner anlegen oder bearbeiten: Name, Nummer (für die Muster) und feste Kameras."""
+    """Spielpartner anlegen oder bearbeiten: Name, Nummer (für die Muster) und Ansage."""
 
     _own: str | None = None
 
@@ -188,29 +190,42 @@ class PartnerSubentryFlow(ConfigSubentryFlow):
         if user_input is not None:
             name = user_input[CONF_NAME].strip()
             number = int(user_input[CONF_NUMBER])
-            cams = list(user_input.get(CONF_CAMS) or [])
             others = self._others()
             if not name or logic.norm(name) in {logic.norm(d[CONF_NAME]) for d in others}:
                 errors[CONF_NAME] = "name_taken"
             if number in {int(d.get(CONF_NUMBER) or 0) for d in others}:
                 errors[CONF_NUMBER] = "number_taken"
-            if not cams:
-                errors[CONF_CAMS] = "cams_required"
             if not errors:
-                data = {CONF_NAME: name, CONF_NUMBER: number, CONF_CAMS: cams}
+                data: dict[str, Any] = {
+                    CONF_NAME: name,
+                    CONF_NUMBER: number,
+                    CONF_ANNOUNCE_START: (user_input.get(CONF_ANNOUNCE_START) or "").strip(),
+                    CONF_ANNOUNCE_END: (user_input.get(CONF_ANNOUNCE_END) or "").strip(),
+                }
+                if user_input.get(CONF_ANNOUNCE_ENTITY):
+                    data[CONF_ANNOUNCE_ENTITY] = user_input[CONF_ANNOUNCE_ENTITY]
                 unique_id = logic.norm(name)
                 if self._own is None:
                     return self.async_create_entry(title=name, data=data, unique_id=unique_id)
+                entry = self._get_entry()
+                if name != current.get(CONF_NAME):  # die Titel der Orte nennen den Spielpartner
+                    for sub in entry.subentries.values():
+                        if sub.subentry_type == SUBENTRY_PLACE and sub.data.get(CONF_PARTNER) == self._own:
+                            self.hass.config_entries.async_update_subentry(
+                                entry, sub, title=logic.place_title(sub.data[CONF_NAME], name)
+                            )
                 return self.async_update_and_abort(
-                    self._get_entry(), self._get_reconfigure_subentry(), title=name, unique_id=unique_id, data=data
+                    entry, self._get_reconfigure_subentry(), title=name, unique_id=unique_id, data=data
                 )
         schema = vol.Schema(
             {
                 vol.Required(CONF_NAME): _TEXT,
                 vol.Required(CONF_NUMBER): _num(1, 99),
-                vol.Required(CONF_CAMS): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="camera", multiple=True)
+                vol.Optional(CONF_ANNOUNCE_ENTITY): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="notify")
                 ),
+                vol.Optional(CONF_ANNOUNCE_START): _TEXT,
+                vol.Optional(CONF_ANNOUNCE_END): _TEXT,
             }
         )
         suggested = user_input or {CONF_NUMBER: self._next_number(), **current}
@@ -232,70 +247,122 @@ class PartnerSubentryFlow(ConfigSubentryFlow):
 
 # ------------------------------------------------------------------------ Orte
 class PlaceSubentryFlow(ConfigSubentryFlow):
-    """Ort anlegen oder bearbeiten, in drei Schritten: Grundlagen, Vorbereiten und Beginn, Ende."""
+    """Ort anlegen oder bearbeiten: Grundlagen, PTZ-Position je Kamera, Vorbereiten und Beginn, Ende."""
 
     _basics: dict[str, Any]
     _begin: dict[str, Any]
     _own: str | None = None
 
-    def _taken_names(self) -> set[str]:
+    @property
+    def _prefix(self) -> str:
+        return "reconfigure" if self._own else "user"
+
+    @property
+    def _current(self) -> Mapping[str, Any]:
+        return self._get_reconfigure_subentry().data if self._own else {}
+
+    def _partners(self) -> dict[str, str]:
+        """Subentry-ID -> Name der Spielpartner."""
         return {
-            logic.norm(s.data[CONF_NAME])
+            sid: s.data[CONF_NAME]
+            for sid, s in self._get_entry().subentries.items()
+            if s.subentry_type == SUBENTRY_PARTNER
+        }
+
+    def _taken(self) -> set[tuple[str, str]]:
+        """Spielpartner und Name der anderen Orte: je Spielpartner darf ein Name nur einmal vorkommen."""
+        return {
+            (s.data.get(CONF_PARTNER, ""), logic.norm(s.data[CONF_NAME]))
             for sid, s in self._get_entry().subentries.items()
             if s.subentry_type == SUBENTRY_PLACE and sid != self._own
         }
 
     # -------------------------------------------------------------- Schritt 1
-    async def _step_basics(
-        self, step_id: str, user_input: dict[str, Any] | None, current: Mapping[str, Any]
-    ) -> SubentryFlowResult:
+    async def _step_basics(self, user_input: dict[str, Any] | None) -> SubentryFlowResult:
+        partners = self._partners()
+        if not partners:
+            return self.async_abort(reason="no_partner")
         errors: dict[str, str] = {}
         if user_input is not None:
             name = user_input[CONF_NAME].strip()
-            if not name or logic.norm(name) in self._taken_names():
+            partner = user_input[CONF_PARTNER]
+            cams = list(user_input.get(CONF_CAMS) or [])
+            if not name or (partner, logic.norm(name)) in self._taken():
                 errors[CONF_NAME] = "name_taken"
-            else:
+            if not cams:
+                errors[CONF_CAMS] = "cams_required"
+            if not errors:
                 self._basics = {
                     CONF_NAME: name,
-                    CONF_PTZ_PRESET: int(user_input.get(CONF_PTZ_PRESET) or 0),
+                    CONF_PARTNER: partner,
+                    CONF_CAMS: cams,
+                    CONF_CAM_PRESETS: {},
                     CONF_LEAD_SECONDS: int(user_input.get(CONF_LEAD_SECONDS) or 0),
                     CONF_END_SECONDS: int(user_input.get(CONF_END_SECONDS) or 0),
-                    CONF_ANNOUNCE_START: (user_input.get(CONF_ANNOUNCE_START) or "").strip(),
-                    CONF_ANNOUNCE_END: (user_input.get(CONF_ANNOUNCE_END) or "").strip(),
                 }
-                if user_input.get(CONF_ANNOUNCE_ENTITY):
-                    self._basics[CONF_ANNOUNCE_ENTITY] = user_input[CONF_ANNOUNCE_ENTITY]
-                return await self._step_begin(f"{step_id}_begin", None, current)
+                if any(ctronics_presets(self.hass, eid) is not None for eid in cams):
+                    return await self._step_ptz(None)
+                return await self._step_begin(None)
         schema = vol.Schema(
             {
                 vol.Required(CONF_NAME): _TEXT,
-                vol.Optional(CONF_PTZ_PRESET): _num(0, 64),
+                vol.Required(CONF_PARTNER): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=[selector.SelectOptionDict(value=sid, label=name) for sid, name in partners.items()],
+                        mode=selector.SelectSelectorMode.DROPDOWN,
+                    )
+                ),
+                vol.Required(CONF_CAMS): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="camera", multiple=True)
+                ),
                 vol.Optional(CONF_LEAD_SECONDS): _num(0, 600, "s"),
                 vol.Optional(CONF_END_SECONDS): _num(0, 600, "s"),
-                vol.Optional(CONF_ANNOUNCE_ENTITY): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="notify")
-                ),
-                vol.Optional(CONF_ANNOUNCE_START): _TEXT,
-                vol.Optional(CONF_ANNOUNCE_END): _TEXT,
             }
         )
         suggested = user_input or {
-            CONF_PTZ_PRESET: 0,
+            CONF_PARTNER: next(iter(partners)),
             CONF_LEAD_SECONDS: DEFAULT_LEAD_SECONDS,
             CONF_END_SECONDS: DEFAULT_END_SECONDS,
-            **current,
+            **self._current,
         }
         return self.async_show_form(
-            step_id=step_id,
+            step_id=self._prefix,
             data_schema=self.add_suggested_values_to_schema(schema, suggested),
             errors=errors,
             last_step=False,  # Schaltfläche: Weiter
         )
 
-    # -------------------------------------------------------------- Schritt 2
-    async def _step_begin(
-        self, step_id: str, user_input: dict[str, Any] | None, current: Mapping[str, Any]
-    ) -> SubentryFlowResult:
+    # ----------------------------------------------- Schritt 2: PTZ je Kamera
+    async def _step_ptz(self, user_input: dict[str, Any] | None) -> SubentryFlowResult:
+        """Je Ctronics-Kamera ein Auswahlfeld mit ihren gespeicherten PTZ-Positionen."""
+        cams = [eid for eid in self._basics[CONF_CAMS] if ctronics_presets(self.hass, eid) is not None]
+        names = logic.unique_names([cam_name(self.hass, eid) for eid in cams], [eid.split(".", 1)[1] for eid in cams])
+        fields = dict(zip(names, cams, strict=True))  # der Kamera-Name ist die Beschriftung des Feldes
+        if user_input is not None:
+            self._basics[CONF_CAM_PRESETS] = {
+                eid: int(user_input[field]) for field, eid in fields.items() if int(user_input.get(field) or 0)
+            }
+            return await self._step_begin(None)
+        schema = vol.Schema(
+            {
+                vol.Optional(field): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=preset_options(self.hass, eid), mode=selector.SelectSelectorMode.DROPDOWN
+                    )
+                )
+                for field, eid in fields.items()
+            }
+        )
+        saved = self._current.get(CONF_CAM_PRESETS) or {}
+        suggested = {field: str(saved.get(eid, 0)) for field, eid in fields.items()}
+        return self.async_show_form(
+            step_id=f"{self._prefix}_ptz",
+            data_schema=self.add_suggested_values_to_schema(schema, suggested),
+            last_step=False,  # Schaltfläche: Weiter
+        )
+
+    # -------------------------------------------------------------- Schritt 3
+    async def _step_begin(self, user_input: dict[str, Any] | None) -> SubentryFlowResult:
         if user_input is not None:
             self._begin = {
                 key: user_input[key] for key in (CONF_PREPARE_ON, CONF_START_OFF, CONF_START_ON) if user_input.get(key)
@@ -303,7 +370,7 @@ class PlaceSubentryFlow(ConfigSubentryFlow):
             if user_input.get(CONF_COVER):
                 self._begin[CONF_COVER] = user_input[CONF_COVER]
                 self._begin[CONF_COVER_POSITION] = int(user_input.get(CONF_COVER_POSITION, DEFAULT_COVER_POSITION))
-            return await self._step_end(step_id.replace("_begin", "") + "_end", None, current)
+            return await self._step_end(None)
         schema = vol.Schema(
             {
                 vol.Optional(CONF_PREPARE_ON): _TARGET,
@@ -314,58 +381,58 @@ class PlaceSubentryFlow(ConfigSubentryFlow):
             }
         )
         return self.async_show_form(
-            step_id=step_id,
+            step_id=f"{self._prefix}_begin",
             data_schema=self.add_suggested_values_to_schema(
-                schema, {CONF_COVER_POSITION: DEFAULT_COVER_POSITION, **current}
+                schema, {CONF_COVER_POSITION: DEFAULT_COVER_POSITION, **self._current}
             ),
             last_step=False,  # Schaltfläche: Weiter
         )
 
-    # -------------------------------------------------------------- Schritt 3
-    async def _step_end(
-        self, step_id: str, user_input: dict[str, Any] | None, current: Mapping[str, Any]
-    ) -> SubentryFlowResult:
+    # -------------------------------------------------------------- Schritt 4
+    async def _step_end(self, user_input: dict[str, Any] | None) -> SubentryFlowResult:
         if user_input is not None:
             data = {
                 **self._basics,
                 **self._begin,
                 **{k: user_input[k] for k in (CONF_END_OFF, CONF_END_ON) if user_input.get(k)},
             }
-            unique_id = logic.norm(data[CONF_NAME])
+            title = logic.place_title(data[CONF_NAME], self._partners()[data[CONF_PARTNER]])
+            unique_id = f"{data[CONF_PARTNER]}:{logic.norm(data[CONF_NAME])}"
             if self._own is None:
-                return self.async_create_entry(title=data[CONF_NAME], data=data, unique_id=unique_id)
+                return self.async_create_entry(title=title, data=data, unique_id=unique_id)
             return self.async_update_and_abort(
-                self._get_entry(),
-                self._get_reconfigure_subentry(),
-                title=data[CONF_NAME],
-                unique_id=unique_id,
-                data=data,
+                self._get_entry(), self._get_reconfigure_subentry(), title=title, unique_id=unique_id, data=data
             )
         schema = vol.Schema({vol.Optional(CONF_END_OFF): _TARGET, vol.Optional(CONF_END_ON): _TARGET})
         return self.async_show_form(
-            step_id=step_id,
-            data_schema=self.add_suggested_values_to_schema(schema, current),
+            step_id=f"{self._prefix}_end",
+            data_schema=self.add_suggested_values_to_schema(schema, self._current),
             last_step=True,  # Schaltfläche: Ort speichern
         )
 
     # ------------------------------------------------------------- Einstiege
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
         self._own = None
-        return await self._step_basics("user", user_input, {})
-
-    async def async_step_user_begin(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
-        return await self._step_begin("user_begin", user_input, {})
-
-    async def async_step_user_end(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
-        return await self._step_end("user_end", user_input, {})
+        return await self._step_basics(user_input)
 
     async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
-        sub = self._get_reconfigure_subentry()
-        self._own = sub.subentry_id
-        return await self._step_basics("reconfigure", user_input, dict(sub.data))
+        self._own = self._get_reconfigure_subentry().subentry_id
+        return await self._step_basics(user_input)
+
+    async def async_step_user_ptz(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
+        return await self._step_ptz(user_input)
+
+    async def async_step_reconfigure_ptz(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
+        return await self._step_ptz(user_input)
+
+    async def async_step_user_begin(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
+        return await self._step_begin(user_input)
 
     async def async_step_reconfigure_begin(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
-        return await self._step_begin("reconfigure_begin", user_input, dict(self._get_reconfigure_subentry().data))
+        return await self._step_begin(user_input)
+
+    async def async_step_user_end(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
+        return await self._step_end(user_input)
 
     async def async_step_reconfigure_end(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
-        return await self._step_end("reconfigure_end", user_input, dict(self._get_reconfigure_subentry().data))
+        return await self._step_end(user_input)

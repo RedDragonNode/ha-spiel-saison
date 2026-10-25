@@ -2,27 +2,44 @@
 
 from __future__ import annotations
 
+from types import MappingProxyType
+from typing import Any
+
 import voluptuous as vol
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform
+from homeassistant.config_entries import ConfigEntry, ConfigSubentry
+from homeassistant.const import CONF_NAME, Platform
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.typing import ConfigType
 
+from . import logic
+from .cams import is_ctronics
 from .const import (
     ATTR_PARTNER,
     ATTR_PLACE,
+    CONF_ANNOUNCE_END,
+    CONF_ANNOUNCE_ENTITY,
+    CONF_ANNOUNCE_START,
+    CONF_CAM_PRESETS,
+    CONF_CAMS,
     CONF_FILE_PATTERN,
+    CONF_PARTNER,
+    CONF_PTZ_PRESET,
     DOMAIN,
     OLD_CAM_NUMBER_PART,
     SERVICE_NEW_SEASON,
     SERVICE_PREPARE,
     SERVICE_START,
     SERVICE_STOP,
+    SUBENTRY_PARTNER,
+    SUBENTRY_PLACE,
 )
 from .manager import SpielSaisonManager, counters_store
+
+_ANNOUNCE_KEYS = (CONF_ANNOUNCE_ENTITY, CONF_ANNOUNCE_START, CONF_ANNOUNCE_END)
 
 PLATFORMS = [
     Platform.SENSOR,
@@ -91,16 +108,67 @@ async def async_setup_entry(hass: HomeAssistant, entry: SpielSaisonConfigEntry) 
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """1.1 -> 1.2: Im Dateinamen steht bei „Cam ID“ der Name der Kamera statt ihrer Nummer."""
+    """Gespeicherte Einträge auf den heutigen Aufbau umstellen."""
     if entry.version > 1:
         return False
     if entry.minor_version < 2:
+        # 1.2: Im Dateinamen steht bei „Cam ID“ der Name der Kamera statt ihrer Nummer
         data = dict(entry.data)
         pattern = data.get(CONF_FILE_PATTERN)
         if isinstance(pattern, str) and OLD_CAM_NUMBER_PART in pattern:
             data[CONF_FILE_PATTERN] = pattern.replace(OLD_CAM_NUMBER_PART, "Cam ID.{cam}")
         hass.config_entries.async_update_entry(entry, data=data, minor_version=2)
+    if entry.minor_version < 3:
+        # 1.3: Kameras gehören zum Ort, die Ansage zum Spielpartner, und jeder Ort gehört zu einem Spielpartner
+        _move_cams_to_places(hass, entry)
+        if stale := er.async_get(hass).async_get_entity_id("select", DOMAIN, f"{entry.entry_id}_place"):
+            er.async_get(hass).async_remove(stale)  # die Ortsauswahl hängt jetzt am Gerät jedes Spielpartners
+        hass.config_entries.async_update_entry(entry, minor_version=3)
     return True
+
+
+def _move_cams_to_places(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Aus Orten ohne Spielpartner werden Orte je Spielpartner, mit dessen bisherigen Kameras und der alten Position."""
+    subentries = list(entry.subentries.values())
+    partners = [s for s in subentries if s.subentry_type == SUBENTRY_PARTNER]
+    old_places = [s for s in subentries if s.subentry_type == SUBENTRY_PLACE and CONF_PARTNER not in s.data]
+    cams_of = {s.subentry_id: list(s.data.get(CONF_CAMS) or []) for s in partners}
+    announce: dict[str, Any] = next(
+        (
+            {key: place.data[key] for key in _ANNOUNCE_KEYS if place.data.get(key)}
+            for place in old_places
+            if any(place.data.get(key) for key in _ANNOUNCE_KEYS)
+        ),
+        {},
+    )
+    for partner in partners:
+        data = {key: value for key, value in partner.data.items() if key != CONF_CAMS}
+        for key in _ANNOUNCE_KEYS:
+            if announce.get(key):
+                data.setdefault(key, announce[key])
+            elif key != CONF_ANNOUNCE_ENTITY:  # wie im Dialog: Texte immer, die Entity nur wenn gesetzt
+                data.setdefault(key, "")
+        if data != dict(partner.data):
+            hass.config_entries.async_update_subentry(entry, partner, data=data)
+    for place in old_places:
+        preset = int(place.data.get(CONF_PTZ_PRESET) or 0)
+        for index, partner in enumerate(partners):
+            cams = cams_of[partner.subentry_id]
+            data = {key: value for key, value in place.data.items() if key not in (CONF_PTZ_PRESET, *_ANNOUNCE_KEYS)}
+            data[CONF_PARTNER] = partner.subentry_id
+            data[CONF_CAMS] = cams
+            data[CONF_CAM_PRESETS] = {eid: preset for eid in cams if preset and is_ctronics(hass, eid)}
+            title = logic.place_title(data[CONF_NAME], partner.data[CONF_NAME])
+            unique_id = f"{partner.subentry_id}:{logic.norm(data[CONF_NAME])}"
+            if index == 0:  # der erste Spielpartner behält den vorhandenen Ort samt Auswahl
+                hass.config_entries.async_update_subentry(entry, place, data=data, title=title, unique_id=unique_id)
+            else:
+                hass.config_entries.async_add_subentry(
+                    entry,
+                    ConfigSubentry(
+                        data=MappingProxyType(data), subentry_type=SUBENTRY_PLACE, title=title, unique_id=unique_id
+                    ),
+                )
 
 
 async def _reload_on_change(hass: HomeAssistant, entry: ConfigEntry) -> None:

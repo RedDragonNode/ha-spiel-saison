@@ -54,3 +54,21 @@ def test_unique_names_appends_entity_part_for_duplicates() -> None:
         "Fuchs (sub)",
         "Hase",
     ]
+
+
+def test_parse_presets_reads_the_ctronics_lines_and_skips_bad_ones() -> None:
+    text = "1: Schaukel\n 20 = Bett \n\nkaputt\n99: zu hoch\n0: null\n7:"
+    assert logic.parse_presets(text) == {1: "Schaukel", 20: "Bett"}
+    assert logic.parse_presets("") == {}
+
+
+def test_preset_labels_add_the_number_to_equal_names() -> None:
+    assert logic.preset_labels({20: "Bett", 5: "Schaukel", 1: "Schaukel"}) == {
+        1: "Schaukel (1)",
+        5: "Schaukel (5)",
+        20: "Bett",
+    }
+
+
+def test_place_title_names_the_partner() -> None:
+    assert logic.place_title("Bett", "Frank") == "Bett (Frank)"

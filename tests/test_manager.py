@@ -31,11 +31,15 @@ def cams(hass: HomeAssistant) -> None:
     add_cameras(hass, "fuchs", "hase")
 
 
-async def _setup(hass: HomeAssistant, places: list[dict] | None = None):
+async def _setup(hass: HomeAssistant, places: list[dict] | None = None, **frank):
+    """Frank (Kameras fuchs und hase) und Tobias (nur hase), jeder mit einem Ort. `places` sind die Orte von Frank."""
     return await setup_entry(
         hass,
-        [make_partner("Frank", 2, ["camera.fuchs", "camera.hase"]), make_partner("Tobias", 1, ["camera.hase"])],
-        places,
+        [make_partner("Frank", 2, **frank), make_partner("Tobias", 1)],
+        [
+            *(places if places is not None else [make_place("Spielzimmer")]),
+            make_place("Spielzimmer", "Tobias", ("camera.hase",)),
+        ],
     )
 
 
@@ -69,14 +73,9 @@ def _runtime(entry):
 
 async def test_start_runs_the_steps_in_order_and_records(hass, stream, cams, service_calls) -> None:
     place = make_place(
-        "Bett",
-        ptz_preset=10,
-        start_off={"entity_id": ["light.schaukel"]},
-        start_on=BED,
-        announce_entity="notify.echo",
-        announce_start="Die Aufnahme startet",
+        "Bett", cam_presets={"camera.fuchs": 10}, start_off={"entity_id": ["light.schaukel"]}, start_on=BED
     )
-    entry = await _setup(hass, [place])
+    entry = await _setup(hass, [place], announce_entity="notify.echo", announce_start="Die Aufnahme startet")
     started = async_capture_events(hass, EVENT_STARTED)
 
     result = await _start(hass)
@@ -110,24 +109,42 @@ async def test_start_moves_ctronics_cameras_to_the_preset(hass, stream, service_
     entity_registry.async_get_or_create("camera", "ctronics_cam", "abc", suggested_object_id="fuchs")
     entity_registry.async_get_or_create("camera", "other", "def", suggested_object_id="hase")
     add_cameras(hass, "fuchs", "hase")
-    await _setup(hass, [make_place("Bett", ptz_preset=10)])
+    await _setup(hass, [make_place("Bett", cam_presets={"camera.fuchs": 10, "camera.hase": 10})])
 
     await _start(hass)
 
-    assert _summary(service_calls) == [
+    assert _summary(service_calls) == [  # camera.hase gehört nicht zu Ctronics und bleibt, wo sie ist
         ("ctronics_cam", "ptz_goto_preset", {"entity_id": ["camera.fuchs"], "preset": 10})
     ]
 
 
-async def test_stop_records_the_duration_and_runs_the_end_step(hass, stream, cams, service_calls) -> None:
-    place = make_place(
-        "Bett",
-        end_off=BED,
-        end_on={"entity_id": ["switch.schrank"]},
-        announce_entity="notify.echo",
-        announce_end="Ende",
+async def test_every_ctronics_camera_moves_to_its_own_position(hass, stream, service_calls, entity_registry) -> None:
+    entity_registry.async_get_or_create("camera", "ctronics_cam", "abc", suggested_object_id="fuchs")
+    entity_registry.async_get_or_create("camera", "ctronics_cam", "def", suggested_object_id="hase")
+    add_cameras(hass, "fuchs", "hase", "reh")
+    await setup_entry(
+        hass,
+        [make_partner("Frank", 2)],
+        [
+            make_place(
+                "Bett",
+                cams=("camera.fuchs", "camera.hase", "camera.reh"),
+                cam_presets={"camera.fuchs": 20, "camera.hase": 1},
+            )
+        ],
     )
-    entry = await _setup(hass, [place])
+
+    await _start(hass)
+
+    assert _summary(service_calls) == [
+        ("ctronics_cam", "ptz_goto_preset", {"entity_id": ["camera.fuchs"], "preset": 20}),
+        ("ctronics_cam", "ptz_goto_preset", {"entity_id": ["camera.hase"], "preset": 1}),
+    ]
+
+
+async def test_stop_records_the_duration_and_runs_the_end_step(hass, stream, cams, service_calls) -> None:
+    place = make_place("Bett", end_off=BED, end_on={"entity_id": ["switch.schrank"]})
+    entry = await _setup(hass, [place], announce_entity="notify.echo", announce_end="Ende")
     stopped = async_capture_events(hass, EVENT_STOPPED)
     await _start(hass)
     service_calls.clear()
@@ -151,14 +168,26 @@ async def test_stop_records_the_duration_and_runs_the_end_step(hass, stream, cam
     assert event.data["reason"] == "manual" and 1790 < event.data["duration_s"] < 1810
 
 
-async def test_start_without_a_place_just_records(hass, stream, cams, service_calls) -> None:
+async def test_a_plain_place_just_records(hass, stream, cams, service_calls) -> None:
     entry = await _setup(hass)
 
     result = await _start(hass)
 
-    assert result["started"] is True and result["place"] is None
+    assert result["started"] is True and result["place"] == "Spielzimmer"
+    assert result["cams"] == ["Fuchs", "Hase"]
     assert service_calls == []
     assert _runtime(entry).phase(FRANK) == "recording"
+
+
+async def test_a_partner_without_a_place_cannot_start(hass, stream, cams) -> None:
+    await setup_entry(hass, [make_partner("Frank", 2)], [])
+
+    with pytest.raises(ServiceValidationError) as err:
+        await _start(hass)
+
+    assert err.value.translation_key == "no_place"
+    assert err.value.translation_placeholders == {"partner": "Frank"}
+    assert FakeRecorder.calls == []
 
 
 async def test_second_start_is_ignored_and_a_stop_without_recording_too(hass, stream, cams) -> None:
@@ -215,7 +244,8 @@ async def test_a_partner_whose_only_camera_is_busy_cannot_start(hass, stream, ca
 async def test_a_busy_camera_blocks_only_that_partner(hass, stream, cams) -> None:
     await setup_entry(
         hass,
-        [make_partner("Frank", 2, ["camera.fuchs"]), make_partner("Tobias", 1, ["camera.fuchs", "camera.hase"])],
+        [make_partner("Frank", 2), make_partner("Tobias", 1)],
+        [make_place("Bett", "Frank", ("camera.fuchs",)), make_place("Bett", "Tobias", ("camera.fuchs", "camera.hase"))],
     )
     await _start(hass, "Frank")
 
@@ -241,6 +271,32 @@ async def test_partner_and_place_are_found_by_a_forgiving_name(hass, stream, cam
     result = await _start(hass, "  frank ", place="BETT")
 
     assert result["partner"] == "Frank" and result["place"] == "Bett"
+
+
+async def test_a_place_belongs_to_its_partner(hass, stream, cams, service_calls) -> None:
+    entry = await setup_entry(
+        hass,
+        [make_partner("Frank", 2), make_partner("Tobias", 1)],
+        [
+            make_place("Bett", "Frank", start_on=BED),
+            make_place("Bett", "Tobias", ("camera.hase",), start_on=SWING),
+        ],
+    )
+
+    result = await _start(hass, "Tobias", place="Bett")
+
+    assert result["cams"] == ["Hase"]
+    assert [dict(c.data) for c in service_calls] == [SWING]  # der Ort von Tobias, nicht der von Frank
+    assert set(_runtime(entry).places_of("p_Tobias")) == {"o_Bett_Tobias"}
+
+
+async def test_a_place_of_another_partner_is_not_found(hass, stream, cams) -> None:
+    await _setup(hass, [make_place("Bett")])  # Tobias hat nur „Spielzimmer“
+
+    with pytest.raises(ServiceValidationError) as err:
+        await _start(hass, "Tobias", place="Bett")
+
+    assert err.value.translation_key == "place_not_found"
 
 
 async def test_stop_during_the_lead_time_cancels_the_start(hass, stream, cams, service_calls) -> None:
@@ -308,7 +364,7 @@ async def test_prepare_leaves_the_season_alone_while_recording(hass, stream, cam
 
 
 async def test_prepare_needs_a_place(hass, cams) -> None:
-    await _setup(hass)
+    await setup_entry(hass, [make_partner("Frank", 2)], [])
     with pytest.raises(ServiceValidationError) as err:
         await hass.services.async_call(DOMAIN, "prepare", {"partner": "Frank"}, blocking=True)
     assert err.value.translation_key == "no_place"
@@ -426,9 +482,15 @@ async def test_service_without_a_loaded_entry(hass) -> None:
 async def test_a_renamed_camera_entity_is_followed(hass, entity_registry) -> None:
     entity_registry.async_get_or_create("camera", "ctronics_cam", "abc", suggested_object_id="fuchs")
     add_cameras(hass, "fuchs")
-    entry = await setup_entry(hass, [make_partner("Frank", 2, ["camera.fuchs"])])
+    entry = await setup_entry(
+        hass,
+        [make_partner("Frank", 2)],
+        [make_place("Bett", cams=("camera.fuchs",), cam_presets={"camera.fuchs": 3})],
+    )
 
     entity_registry.async_update_entity("camera.fuchs", new_entity_id="camera.fuchs_neu")
     await hass.async_block_till_done()
 
-    assert entry.subentries["p_Frank"].data["cams"] == ["camera.fuchs_neu"]
+    data = entry.subentries["o_Bett"].data
+    assert data["cams"] == ["camera.fuchs_neu"]
+    assert data["cam_presets"] == {"camera.fuchs_neu": 3}

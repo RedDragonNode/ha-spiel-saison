@@ -21,7 +21,9 @@ FRANK = "p_Frank"
 
 async def _setup(hass: HomeAssistant, places: list[dict] | None = None):
     add_cameras(hass, "fuchs", "hase")
-    return await setup_entry(hass, [make_partner("Frank", 2, ["camera.fuchs", "camera.hase"])], places)
+    return await setup_entry(
+        hass, [make_partner("Frank", 2)], places if places is not None else [make_place("Spielzimmer")]
+    )
 
 
 async def test_devices_hang_below_the_hub(hass: HomeAssistant) -> None:
@@ -40,6 +42,7 @@ async def test_partner_entities_exist(hass: HomeAssistant) -> None:
     entry = await _setup(hass)
     for domain, key in (
         ("switch", "recording"),
+        ("select", "place"),
         ("button", "prepare"),
         ("button", "new_season"),
         ("number", "season"),
@@ -162,35 +165,52 @@ async def test_the_new_season_button_works_on_a_new_day(hass: HomeAssistant) -> 
     assert hass.states.get(partner_entity(hass, entry, FRANK, "number", "season")).state == "2"
 
 
-async def test_the_place_select_is_there_only_with_places_and_is_remembered(hass: HomeAssistant) -> None:
-    entry = await _setup(hass)
-    assert er.async_get(hass).async_get_entity_id("select", DOMAIN, f"{entry.entry_id}_place") is None
-    assert await hass.config_entries.async_unload(entry.entry_id)
-
-    entry = await _setup_with_places(hass)
-    select = hub_entity(hass, entry, "select", "place")
+async def test_the_place_select_sits_at_the_partner_and_is_remembered(hass: HomeAssistant) -> None:
+    entry = await _setup(hass, [make_place("Bett"), make_place("Schaukel")])
+    select = partner_entity(hass, entry, FRANK, "select", "place")
     assert hass.states.get(select).state == "Bett"
     assert hass.states.get(select).attributes["options"] == ["Bett", "Schaukel"]
+    assert (
+        er.async_get(hass).async_get_entity_id("select", DOMAIN, f"{entry.entry_id}_place") is None
+    )  # kein Hub-Select
 
     await hass.services.async_call(
         "select", "select_option", {"entity_id": select, "option": "Schaukel"}, blocking=True
     )
     await hass.async_block_till_done()
     assert hass.states.get(select).state == "Schaukel"
-    assert entry.runtime_data.place_id == "o_Schaukel"
+    assert entry.runtime_data.place_ids == {FRANK: "o_Schaukel"}
 
     assert await hass.config_entries.async_reload(entry.entry_id)
     await hass.async_block_till_done()
     assert hass.states.get(select).state == "Schaukel"
 
 
-async def _setup_with_places(hass: HomeAssistant):
-    from homeassistant.config_entries import ConfigEntryState
+async def test_a_partner_only_offers_its_own_places(hass: HomeAssistant) -> None:
+    add_cameras(hass, "fuchs", "hase")
+    entry = await setup_entry(
+        hass,
+        [make_partner("Frank", 2), make_partner("Tobias", 1)],
+        [
+            make_place("Bett", "Frank"),
+            make_place("Schaukel", "Frank"),
+            make_place("Bett", "Tobias"),
+            make_place("Dach", "Tobias"),
+        ],
+    )
 
-    for entry in hass.config_entries.async_entries(DOMAIN):
-        assert entry.state in (ConfigEntryState.NOT_LOADED, ConfigEntryState.LOADED)
-        await hass.config_entries.async_remove(entry.entry_id)
-    return await _setup(hass, [make_place("Bett"), make_place("Schaukel")])
+    frank = hass.states.get(partner_entity(hass, entry, FRANK, "select", "place"))
+    tobias = hass.states.get(partner_entity(hass, entry, "p_Tobias", "select", "place"))
+
+    assert frank.attributes["options"] == ["Bett", "Schaukel"]
+    assert tobias.attributes["options"] == ["Bett", "Dach"]
+    assert tobias.state == "Bett"
+
+
+async def test_a_partner_without_places_has_no_place_select(hass: HomeAssistant) -> None:
+    entry = await _setup(hass, [])
+
+    assert er.async_get(hass).async_get_entity_id("select", DOMAIN, f"{entry.entry_id}_{FRANK}_place") is None
 
 
 async def test_the_selected_place_decides_which_steps_run(hass: HomeAssistant, stream, service_calls) -> None:
@@ -204,7 +224,7 @@ async def test_the_selected_place_decides_which_steps_run(hass: HomeAssistant, s
     await hass.services.async_call(
         "select",
         "select_option",
-        {"entity_id": hub_entity(hass, entry, "select", "place"), "option": "Schaukel"},
+        {"entity_id": partner_entity(hass, entry, FRANK, "select", "place"), "option": "Schaukel"},
         blocking=True,
     )
 

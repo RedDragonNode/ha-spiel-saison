@@ -27,6 +27,11 @@ def norm(text: str) -> str:
     return re.sub(r"[^a-z0-9]", "", str(text).translate(_UMLAUTE).lower())
 
 
+def place_title(place: str, partner: str) -> str:
+    """Titel eines Ortes in der Liste der Einträge: der Name allein wäre bei zwei Spielpartnern doppelt."""
+    return f"{place} ({partner})"
+
+
 def pad(number: int) -> str:
     """Zahl zweistellig: 3 -> '03'."""
     return f"{int(number):02d}"
@@ -56,6 +61,26 @@ def render_pattern(pattern: str, when: datetime, values: Mapping[str, object]) -
         if key in values:
             text = text.replace(f"{{{key}}}", _clean(values[key]))
     return render_tokens(text, when)
+
+
+_PRESET_LINE = re.compile(r"^\s*(\d+)\s*[:=]\s*(.+?)\s*$")
+
+
+def parse_presets(text: str, maximum: int = 64) -> dict[int, str]:
+    """Zeilen wie '1: Schaukel' (so stehen sie bei Ctronics 4K Cam) als Nummer -> Name. Fehlerhaftes fällt weg."""
+    presets: dict[int, str] = {}
+    for line in str(text or "").splitlines():
+        if (match := _PRESET_LINE.match(line)) and 1 <= int(match.group(1)) <= maximum:
+            presets[int(match.group(1))] = match.group(2)
+    return presets
+
+
+def preset_labels(presets: Mapping[int, str]) -> dict[int, str]:
+    """Namen zum Anzeigen. Gleiche Namen bekommen die Nummer dazu, genau wie in der Auswahl der Ctronics-Kamera."""
+    names = list(presets.values())
+    return {
+        number: name if names.count(name) == 1 else f"{name} ({number})" for number, name in sorted(presets.items())
+    }
 
 
 def unique_stems(stems: list[str]) -> list[str]:

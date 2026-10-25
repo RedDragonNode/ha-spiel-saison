@@ -53,27 +53,30 @@
       "step": {
         "user": {
           "title": "Neuer Spielpartner",
-          "description": "Jeder Spielpartner hat eigene Saisons, Zähler und einen eigenen Ordner. Seine Kameras sind fest eingestellt, und dieselbe Kamera darf bei mehreren Spielpartnern stehen. Sie nimmt aber nie bei zwei Spielpartnern gleichzeitig auf. Die Nummer erscheint im Ordner und im Dateinamen, zum Beispiel als 02.",
+          "description": "Jeder Spielpartner hat eigene Saisons, Zähler und einen eigenen Ordner. Die Kameras gehören zu den Orten, die du danach für ihn anlegst. Die Nummer erscheint im Ordner und im Dateinamen, zum Beispiel als 02. Die Ansage ist optional: Sie läuft über eine notify-Entity, zum Beispiel einen Echo, beim Start und beim Ende einer Aufnahme.",
           "data": {
             "name": "Name",
             "number": "Nummer",
-            "cams": "Kameras"
+            "announce_entity": "Ansage über (notify-Entity, z. B. Alexa)",
+            "announce_start": "Ansage beim Start",
+            "announce_end": "Ansage beim Ende"
           }
         },
         "reconfigure": {
           "title": "Spielpartner bearbeiten",
-          "description": "Name, Nummer und Kameras ändern. Zähler und Saison bleiben erhalten. Schon vorhandene Aufnahmen bleiben in ihrem Ordner, neue gehen in den Ordner mit dem geänderten Namen.",
+          "description": "Name, Nummer und Ansage ändern. Zähler und Saison bleiben erhalten. Schon vorhandene Aufnahmen bleiben in ihrem Ordner, neue gehen in den Ordner mit dem geänderten Namen. Die Kameras stehen bei den Orten.",
           "data": {
             "name": "Name",
             "number": "Nummer",
-            "cams": "Kameras"
+            "announce_entity": "Ansage über (notify-Entity, z. B. Alexa)",
+            "announce_start": "Ansage beim Start",
+            "announce_end": "Ansage beim Ende"
           }
         }
       },
       "error": {
         "name_taken": "Diesen Namen gibt es schon (oder er ist leer).",
-        "number_taken": "Diese Nummer hat schon ein anderer Spielpartner.",
-        "cams_required": "Bitte mindestens eine Kamera wählen."
+        "number_taken": "Diese Nummer hat schon ein anderer Spielpartner."
       },
       "abort": {
         "reconfigure_successful": "Gespeichert."
@@ -88,16 +91,18 @@
       "step": {
         "user": {
           "title": "Neuer Ort",
-          "description": "Ein Ort ist ein Platz, an dem gespielt wird, zum Beispiel Bett oder Schaukel. Beim Start fährt die Integration die Ctronics-Kameras auf die Voreinstellung des Ortes (0 = nicht bewegen), schaltet Licht und Geräte, sagt optional etwas an und wartet den Vorlauf ab, bevor die Aufnahme beginnt. Beim Ende wartet sie die Pause ab und stellt alles zurück. Im nächsten Schritt wählst du, was geschaltet wird.",
+          "description": "Ein Ort ist ein Platz, an dem ein Spielpartner spielt, zum Beispiel Bett oder Schaukel. Er bringt die Kameras mit, die dort aufnehmen. Beim Start fährt die Integration die Ctronics-Kameras auf ihre PTZ-Position, schaltet Licht und Geräte und wartet den Vorlauf ab, bevor die Aufnahme beginnt. Beim Ende wartet sie die Pause ab und stellt alles zurück. Im nächsten Schritt wählst du für jede Ctronics-Kamera die PTZ-Position, danach, was geschaltet wird.",
           "data": {
             "name": "Name",
-            "ptz_preset": "PTZ-Voreinstellung der Ctronics-Kameras (0 = nicht bewegen)",
+            "partner": "Spielpartner",
+            "cams": "Kameras",
             "lead_seconds": "Vorlauf zwischen Beginn und Aufnahme",
-            "end_seconds": "Pause zwischen Aufnahme-Ende und Ende-Schritt",
-            "announce_entity": "Ansage über (notify-Entity, z. B. Alexa)",
-            "announce_start": "Ansage beim Start",
-            "announce_end": "Ansage beim Ende"
+            "end_seconds": "Pause zwischen Aufnahme-Ende und Ende-Schritt"
           }
+        },
+        "user_ptz": {
+          "title": "PTZ-Position je Kamera",
+          "description": "Für jede Ctronics-Kamera dieses Ortes wählst du die gespeicherte Position, die beim Start angefahren wird. Die Namen stammen aus den Optionen der Integration Ctronics 4K Cam. Ohne Namen stehen die Nummern 1 bis 64 zur Wahl. „Nicht bewegen“ lässt die Kamera, wo sie ist. Andere Kameras werden nicht bewegt und stehen hier nicht."
         },
         "user_begin": {
           "title": "Vorbereiten und Beginn",
@@ -121,16 +126,18 @@
         },
         "reconfigure": {
           "title": "Ort bearbeiten",
-          "description": "Ändere die Einstellungen des Ortes. Im nächsten Schritt stehen die Ziele, die geschaltet werden.",
+          "description": "Ändere die Einstellungen des Ortes. Im nächsten Schritt stehen die PTZ-Positionen der Kameras, danach die Ziele, die geschaltet werden.",
           "data": {
             "name": "Name",
-            "ptz_preset": "PTZ-Voreinstellung der Ctronics-Kameras (0 = nicht bewegen)",
+            "partner": "Spielpartner",
+            "cams": "Kameras",
             "lead_seconds": "Vorlauf zwischen Beginn und Aufnahme",
-            "end_seconds": "Pause zwischen Aufnahme-Ende und Ende-Schritt",
-            "announce_entity": "Ansage über (notify-Entity, z. B. Alexa)",
-            "announce_start": "Ansage beim Start",
-            "announce_end": "Ansage beim Ende"
+            "end_seconds": "Pause zwischen Aufnahme-Ende und Ende-Schritt"
           }
+        },
+        "reconfigure_ptz": {
+          "title": "PTZ-Position je Kamera",
+          "description": "Für jede Ctronics-Kamera dieses Ortes wählst du die gespeicherte Position, die beim Start angefahren wird. Die Namen stammen aus den Optionen der Integration Ctronics 4K Cam. Ohne Namen stehen die Nummern 1 bis 64 zur Wahl. „Nicht bewegen“ lässt die Kamera, wo sie ist. Andere Kameras werden nicht bewegt und stehen hier nicht."
         },
         "reconfigure_begin": {
           "title": "Vorbereiten und Beginn",
@@ -154,9 +161,11 @@
         }
       },
       "error": {
-        "name_taken": "Diesen Namen gibt es schon (oder er ist leer)."
+        "name_taken": "Diesen Namen gibt es bei diesem Spielpartner schon (oder er ist leer).",
+        "cams_required": "Bitte mindestens eine Kamera wählen."
       },
       "abort": {
+        "no_partner": "Bitte lege zuerst einen Spielpartner an. Ein Ort gehört immer zu einem Spielpartner.",
         "reconfigure_successful": "Gespeichert."
       }
     }
@@ -256,7 +265,7 @@
         },
         "place": {
           "name": "Ort",
-          "description": "Name des Ortes. Ohne Angabe gilt der gewählte Ort."
+          "description": "Name des Ortes dieses Spielpartners. Ohne Angabe gilt der Ort, der am Gerät des Spielpartners gewählt ist."
         }
       }
     },
@@ -280,7 +289,7 @@
         },
         "place": {
           "name": "Ort",
-          "description": "Name des Ortes. Ohne Angabe gilt der gewählte Ort."
+          "description": "Name des Ortes dieses Spielpartners. Ohne Angabe gilt der Ort, der am Gerät des Spielpartners gewählt ist."
         }
       }
     },
@@ -306,7 +315,7 @@
       "message": "Den Ort „{place}“ gibt es nicht."
     },
     "no_place": {
-      "message": "Es ist noch kein Ort angelegt. Bitte unter Spiel Saison einen Ort hinzufügen."
+      "message": "Für {partner} ist noch kein Ort angelegt. Bitte unter Spiel Saison einen Ort mit den Kameras hinzufügen."
     },
     "no_cam_available": {
       "message": "Spielpartner {partner}: keine Kamera frei oder ohne Stream-Quelle ({details})."

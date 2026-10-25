@@ -8,9 +8,9 @@
 [![Hassfest](https://github.com/RedDragonNode/ha-spiel-saison/actions/workflows/hassfest.yaml/badge.svg)](https://github.com/RedDragonNode/ha-spiel-saison/actions/workflows/hassfest.yaml)
 [![HACS](https://github.com/RedDragonNode/ha-spiel-saison/actions/workflows/hacs.yaml/badge.svg)](https://github.com/RedDragonNode/ha-spiel-saison/actions/workflows/hacs.yaml)
 
-**Saisons, Spielpartner und Aufnahmen aus einer Hand.** Jeder Spielpartner hat feste Kameras, eigene Saisons und eigene Zähler. Ein Schalter richtet den Ort ein (Kameras anfahren, Licht, Winde, Ansage), wartet den Vorlauf ab und startet die Aufnahme. Beim Beenden stellt er alles wieder zurück. Aufgenommen wird der RTSP-Stream direkt in eine Datei, **ohne Neukodierung** (ffmpeg `-c copy`), das braucht kaum CPU und keine GPU.
+**Saisons, Spielpartner und Aufnahmen aus einer Hand.** Jeder Spielpartner hat eigene Orte mit ihren Kameras, eigene Saisons und eigene Zähler. Ein Schalter richtet den Ort ein (Kameras auf ihre PTZ-Position fahren, Licht, Winde, Ansage), wartet den Vorlauf ab und startet die Aufnahme. Beim Beenden stellt er alles wieder zurück. Aufgenommen wird der RTSP-Stream direkt in eine Datei, **ohne Neukodierung** (ffmpeg `-c copy`), das braucht kaum CPU und keine GPU.
 
-Die Integration ist der Nachfolger von „Spiel Saison aufnehmen“ und gedacht für die Kameras der Integration [Ctronics 4K Cam](https://github.com/RedDragonNode/ha-ctronics-cam). Die Aufnahme funktioniert mit jeder Kamera-Entity, die eine Stream-Quelle hat. Nur die PTZ-Voreinstellung fährt nur Ctronics-Kameras an.
+Die Integration ist der Nachfolger von „Spiel Saison aufnehmen“ und gedacht für die Kameras der Integration [Ctronics 4K Cam](https://github.com/RedDragonNode/ha-ctronics-cam). Die Aufnahme funktioniert mit jeder Kamera-Entity, die eine Stream-Quelle hat. Nur die PTZ-Positionen fahren ausschließlich Ctronics-Kameras an.
 
 | Baustein | Aufgabe |
 |---|---|
@@ -45,21 +45,24 @@ Platzhalter in geschweiften Klammern: `{partner}` Name, `{nr}` Nummer des Spielp
 
 ### Spielpartner
 
-*Spiel Saison → Spielpartner hinzufügen:* Name, Nummer (für die Muster, jede Nummer nur einmal) und die **festen Kameras**. Dieselbe Kamera darf bei mehreren Spielpartnern stehen, sie nimmt aber nie bei zwei zugleich auf. Nach einem Neustart von Home Assistant erkennt die Integration laufende Aufnahmen wieder. Wird eine Kamera-Entity umbenannt, ziehen die Spielpartner mit.
+*Spiel Saison → Spielpartner hinzufügen:* Name, Nummer (für die Muster, jede Nummer nur einmal) und optional die **Ansage**: eine `notify`-Entity (zum Beispiel ein Echo) mit je einem Text für den Start und das Ende einer Aufnahme. Die Kameras gehören nicht zum Spielpartner, sondern zu seinen Orten. Nach einem Neustart von Home Assistant erkennt die Integration laufende Aufnahmen wieder.
 
 ### Orte
 
-*Spiel Saison → Ort hinzufügen* (Bett, Schaukel …), in drei Schritten, alles außer dem Namen ist optional:
+*Spiel Saison → Ort hinzufügen* (Bett, Schaukel …). **Jeder Ort gehört zu einem Spielpartner** und bringt die Kameras mit, die dort aufnehmen. Ein Name darf bei mehreren Spielpartnern vorkommen („Bett“ bei Frank und „Bett“ bei Tobias sind zwei Orte). Der Dialog hat vier Schritte, alles außer Name, Spielpartner und Kameras ist optional:
 
 | Schritt | Einstellung |
 |---|---|
-| 1 | PTZ-Voreinstellung der Ctronics-Kameras (0 = nicht bewegen), **Vorlauf** (Standard 30 s), **Pause** vor dem Ende-Schritt (Standard 10 s), Ansage über eine `notify`-Entity mit Texten für Start und Ende |
-| 2 | **Vorbereiten:** einschalten, dazu Rollo oder Winde auf eine Position fahren (davor beginnt die Saison des Tages, siehe unten). **Beginn:** erst ausschalten, dann einschalten |
-| 3 | **Ende:** erst ausschalten, dann einschalten |
+| 1 | **Name**, darunter der **Spielpartner** (Auswahlfeld), die **Kameras** des Ortes, **Vorlauf** (Standard 30 s) und **Pause** vor dem Ende-Schritt (Standard 10 s) |
+| 2 | **PTZ-Position je Kamera:** für jede ausgewählte Ctronics-Kamera ein eigenes Auswahlfeld mit ihren gespeicherten Positionen (oder „Nicht bewegen“). Der Schritt entfällt, wenn der Ort keine Ctronics-Kamera hat |
+| 3 | **Vorbereiten:** einschalten, dazu Rollo oder Winde auf eine Position fahren (davor beginnt die Saison des Tages, siehe unten). **Beginn:** erst ausschalten, dann einschalten |
+| 4 | **Ende:** erst ausschalten, dann einschalten |
+
+Die Namen der Positionen stammen aus der Integration Ctronics 4K Cam (dort unter *Optionen → Preset-Positionen*, eine Zeile `1: Schaukel` je Position). Hat eine Kamera noch keine Namen, stehen die Nummern 1 bis 64 zur Wahl. Dieselbe Kamera darf bei mehreren Orten stehen, sie nimmt aber nie bei zwei Spielpartnern zugleich auf. Wird eine Kamera-Entity umbenannt, ziehen die Orte mit.
 
 Die „Ziele“ wählst du wie in Automationen: Entities, Geräte, Bereiche oder **Labels**, auch Szenen und Skripte. Aufgerufen wird `homeassistant.turn_on` und `turn_off`.
 
-**Ablauf beim Starten:** Kameras auf die Voreinstellung fahren → Beginn „ausschalten“ → Beginn „einschalten“ → Ansage → Vorlauf → Aufnahme. **Beim Beenden:** Aufnahme stoppen → Pause → Ende „ausschalten“ → Ende „einschalten“ → Ansage. Schlägt ein Aufruf fehl, läuft der Rest trotzdem weiter, die Aufnahme ist wichtiger als das Licht (der Fehler steht im Protokoll und im Attribut `message` des Status-Sensors). Wird beim Vorlauf gestoppt, fällt die Aufnahme aus und der Ende-Schritt stellt alles zurück. Lehnt die App den Start ab (z. B. Speicher voll), läuft der Ende-Schritt ebenfalls.
+**Ablauf beim Starten:** Kameras auf ihre PTZ-Position fahren → Beginn „ausschalten“ → Beginn „einschalten“ → Ansage des Spielpartners → Vorlauf → Aufnahme. **Beim Beenden:** Aufnahme stoppen → Pause → Ende „ausschalten“ → Ende „einschalten“ → Ansage des Spielpartners. Schlägt ein Aufruf fehl, läuft der Rest trotzdem weiter, die Aufnahme ist wichtiger als das Licht (der Fehler steht im Protokoll und im Attribut `message` des Status-Sensors). Wird beim Vorlauf gestoppt, fällt die Aufnahme aus und der Ende-Schritt stellt alles zurück. Lehnt die App den Start ab (z. B. Speicher voll), läuft der Ende-Schritt ebenfalls. Ein Spielpartner ohne Ort kann nicht aufnehmen.
 
 ### Saison
 
@@ -67,13 +70,14 @@ Eine Saison ist ein Spieltag mit allen Aufnahmen darin, sie bekommt einen eigene
 
 ## Entities
 
-Am Gerät **Spiel Saison**: `select` **Ort** (der Ort für Vorbereiten und Aufnahme, nur mit mindestens einem Ort), Sensor **Status** (Bereit, Nimmt auf, Fehler), **Aktueller Spielpartner**, **Recorder: freier Speicher**, Binärsensoren **Recorder erreichbar** und **Aufnahme**.
+Am Gerät **Spiel Saison**: Sensor **Status** (Bereit, Nimmt auf, Fehler), **Aktueller Spielpartner**, **Recorder: freier Speicher**, Binärsensoren **Recorder erreichbar** und **Aufnahme**.
 
 Am Gerät **Spielpartner …**:
 
 | Entity | Bedeutung |
 |---|---|
 | Schalter **Aufnahme** | an = Ablauf starten, aus = Aufnahme beenden |
+| Auswahl **Ort** | der Ort für Vorbereiten und Aufnahme. Es stehen nur die Orte dieses Spielpartners zur Wahl, die anderen erscheinen hier nicht (nur mit mindestens einem Ort) |
 | Taste **Vorbereiten** | beginnt die Saison des Tages (nur wenn es für heute noch keine gibt) und führt den Vorbereiten-Schritt des gewählten Ortes aus |
 | Taste **Neue Saison beginnen** | Saison +1, Zähler und Auswertung der Saison auf null, neuer Saison-Ordner. Geht nur einmal pro Tag und nur ohne laufende Aufnahme, die alte Saison wird gespeichert |
 | Zahlen **Saison**, **Aufnahmen in Saison**, **Aufnahmen gesamt** | Zähler, von Hand änderbar |
@@ -87,7 +91,7 @@ Die Zähler zählen eine Aufnahme, sobald die App sie gestartet hat.
 
 | Dienst | Felder |
 |---|---|
-| `spiel_saison.start_recording` | `partner`, optional `place` (sonst der gewählte Ort) |
+| `spiel_saison.start_recording` | `partner`, optional `place` (ein Ort dieses Spielpartners, sonst der am Spielpartner gewählte) |
 | `spiel_saison.stop_recording` | `partner` |
 | `spiel_saison.prepare` | `partner`, optional `place`; beginnt auch die Saison des Tages (Antwort: `season`, `new_season`) |
 | `spiel_saison.new_season` | `partner`; einmal pro Tag (Antwort: `started`, bei `false` mit `reason: already_today`) |
@@ -106,7 +110,7 @@ Beendet der Recorder eine Aufnahme von sich aus (zum Beispiel weil der Speicher 
 
 ## Von „Spiel Saison aufnehmen“ umsteigen
 
-Zähler werden nicht übernommen, sie beginnen bei null. Setze sie bei Bedarf über die Zahlen am Gerät des Spielpartners. Automationen, die die alten Tasten und Entities benutzen, stellst du auf die Taste **Vorbereiten** (sie beginnt auch die Saison des Tages), den Schalter **Aufnahme** des Spielpartners und den **Ort** um, danach kannst du die alte Integration und die alte App entfernen.
+Zähler werden nicht übernommen, sie beginnen bei null. Setze sie bei Bedarf über die Zahlen am Gerät des Spielpartners. Automationen, die die alten Tasten und Entities benutzen, stellst du auf die Taste **Vorbereiten** (sie beginnt auch die Saison des Tages), den Schalter **Aufnahme** des Spielpartners und die **Ort**-Auswahl an seinem Gerät um, danach kannst du die alte Integration und die alte App entfernen.
 
 ## Fehlersuche
 
@@ -126,7 +130,7 @@ Die Tests der App brauchen `ffmpeg` und laufen sonst nur teilweise. In der CI la
 
 ## English
 
-**Spiel Saison** manages seasons, play partners and recordings in Home Assistant. Every play partner has fixed cameras, their own seasons and counters. One switch sets up a place (move the Ctronics cameras to a PTZ preset, switch lights and devices, make an announcement), waits for the lead time and starts a stream-copy recording through the app **Spiel Saison Recorder** (ffmpeg `-c copy`, no re-encoding). When you stop, it waits, puts everything back and updates the statistics. Preparing a place also begins the season of the day, at most one season begins per day. Folder and file names come from patterns with placeholders for partner, season, recording number and camera name. The integration offers services and events for your own automations. Install the integration through HACS and add this repository to the App store for the recorder. The texts in the UI are available in German and English.
+**Spiel Saison** manages seasons, play partners and recordings in Home Assistant. Every play partner has fixed cameras, their own seasons and counters. One switch sets up a place (move the Ctronics cameras to a PTZ preset, switch lights and devices, make an announcement), waits for the lead time and starts a stream-copy recording through the app **Spiel Saison Recorder** (ffmpeg `-c copy`, no re-encoding). When you stop, it waits, puts everything back and updates the statistics. Every place belongs to a play partner and brings its cameras, with a PTZ position per Ctronics camera taken from the camera's stored positions; the announcement belongs to the play partner. Preparing a place also begins the season of the day, at most one season begins per day. Folder and file names come from patterns with placeholders for partner, season, recording number and camera name. The integration offers services and events for your own automations. Install the integration through HACS and add this repository to the App store for the recorder. The texts in the UI are available in German and English.
 
 ## Lizenz
 

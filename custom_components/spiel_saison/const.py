@@ -25,10 +25,15 @@ OLD_CAM_NUMBER_PART = "Cam ID.{cam_nr}"  # bis 0.1.0 stand hier die Nummer der K
 
 # --- Spielpartner (Subentry-Daten) -------------------------------------------------
 CONF_NUMBER = "number"  # Nummer des Spielpartners ("nr" in den Mustern)
-CONF_CAMS = "cams"  # Kamera-Entities (camera.*)
+CONF_ANNOUNCE_ENTITY = "announce_entity"  # notify-Entity für Ansagen
+CONF_ANNOUNCE_START = "announce_start"
+CONF_ANNOUNCE_END = "announce_end"
 
 # --- Ort (Subentry-Daten) ----------------------------------------------------------
-CONF_PTZ_PRESET = "ptz_preset"  # PTZ-Voreinstellung der Ctronics-Kameras beim Start
+CONF_PARTNER = "partner"  # Subentry-ID des Spielpartners, zu dem der Ort gehört
+CONF_CAMS = "cams"  # Kamera-Entities (camera.*) des Ortes
+CONF_CAM_PRESETS = "cam_presets"  # Kamera-Entity -> PTZ-Position der Ctronics-Kamera (fehlt = nicht bewegen)
+CONF_PTZ_PRESET = "ptz_preset"  # bis 0.1.x: eine PTZ-Position für alle Kameras (nur noch für die Umstellung)
 CONF_PREPARE_ON = "prepare_on"  # Ziele (Entities, Bereiche, Labels), die beim Vorbereiten eingeschaltet werden
 CONF_COVER = "cover"  # Rollo, Winde oder Ähnliches, das beim Vorbereiten auf eine Position fährt
 CONF_COVER_POSITION = "cover_position"
@@ -36,9 +41,6 @@ CONF_START_OFF = "start_off"
 CONF_START_ON = "start_on"
 CONF_END_OFF = "end_off"
 CONF_END_ON = "end_on"
-CONF_ANNOUNCE_ENTITY = "announce_entity"  # notify-Entity für Ansagen
-CONF_ANNOUNCE_START = "announce_start"
-CONF_ANNOUNCE_END = "announce_end"
 CONF_LEAD_SECONDS = "lead_seconds"  # Vorlauf zwischen Beginn-Schritt und Aufnahme
 CONF_END_SECONDS = "end_seconds"  # Pause zwischen Aufnahme-Ende und Ende-Schritt
 
@@ -48,7 +50,9 @@ DEFAULT_COVER_POSITION = 50
 
 TARGET_FIELDS = (CONF_PREPARE_ON, CONF_START_OFF, CONF_START_ON, CONF_END_OFF, CONF_END_ON)
 
-CTRONICS_DOMAIN = "ctronics_cam"  # nur diese Kameras fahren die PTZ-Voreinstellung an
+CTRONICS_DOMAIN = "ctronics_cam"  # nur diese Kameras fahren eine PTZ-Position an
+CTRONICS_PRESETS_OPTION = "presets"  # Option der Ctronics-Integration: Zeilen wie "1: Schaukel"
+MAX_PTZ_PRESET = 64  # so viele Positionen kann eine Ctronics-Kamera speichern
 
 STORAGE_VERSION = 1
 

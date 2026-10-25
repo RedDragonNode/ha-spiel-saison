@@ -14,7 +14,6 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_NAME
 from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
-from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -24,11 +23,13 @@ from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from . import logic
+from .cams import cam_name, is_ctronics
 from .const import (
     CONF_ANNOUNCE_END,
     CONF_ANNOUNCE_ENTITY,
     CONF_ANNOUNCE_START,
     CONF_BASE_FOLDER,
+    CONF_CAM_PRESETS,
     CONF_CAMS,
     CONF_COVER,
     CONF_COVER_POSITION,
@@ -38,9 +39,9 @@ from .const import (
     CONF_FILE_PATTERN,
     CONF_LEAD_SECONDS,
     CONF_NUMBER,
+    CONF_PARTNER,
     CONF_PARTNER_PATTERN,
     CONF_PREPARE_ON,
-    CONF_PTZ_PRESET,
     CONF_RECORDER_KEY,
     CONF_RECORDER_URL,
     CONF_SEASON_PATTERN,
@@ -83,14 +84,20 @@ class PartnerCfg:
     subentry_id: str
     name: str
     number: int
-    cams: list[str]
+    announce_entity: str = ""
+    announce_start: str = ""
+    announce_end: str = ""
 
 
 @dataclass
 class PlaceCfg:
+    """Ein Ort gehört zu einem Spielpartner und bringt dessen Kameras für diesen Platz mit."""
+
     subentry_id: str
     name: str
-    ptz_preset: int = 0  # 0 = Kameras nicht bewegen
+    partner_id: str
+    cams: list[str] = field(default_factory=list)
+    cam_presets: dict[str, int] = field(default_factory=dict)  # Kamera -> PTZ-Position, fehlt = nicht bewegen
     prepare_on: dict[str, Any] = field(default_factory=dict)
     cover: str = ""
     cover_position: int = DEFAULT_COVER_POSITION
@@ -98,9 +105,6 @@ class PlaceCfg:
     start_on: dict[str, Any] = field(default_factory=dict)
     end_off: dict[str, Any] = field(default_factory=dict)
     end_on: dict[str, Any] = field(default_factory=dict)
-    announce_entity: str = ""
-    announce_start: str = ""
-    announce_end: str = ""
     lead_s: int = DEFAULT_LEAD_SECONDS
     end_s: int = DEFAULT_END_SECONDS
 
@@ -144,7 +148,7 @@ class SpielSaisonManager:
         self.places: dict[str, PlaceCfg] = {}
         self.states: dict[str, PartnerState] = {}
         self.runs: dict[str, dict[str, Any]] = {}  # laufende Abläufe je Spielpartner
-        self.place_id: str | None = None  # gewählter Ort
+        self.place_ids: dict[str, str] = {}  # gewählter Ort je Spielpartner
         self.rec_status: dict[str, Any] = {}
         self.rec_online: bool | None = None
         self.message: str | None = None
@@ -168,8 +172,13 @@ class SpielSaisonManager:
             state = PartnerState(**{k: v for k, v in raw.items() if k in known})
             state.season_start = state.season_start or today
             self.states[sid] = state
-        place = stored.get("place")
-        self.place_id = place if place in self.places else next(iter(self.places), None)
+        chosen = stored.get("places") or {}
+        legacy = stored.get("place")  # bis 0.1.x gab es einen gewählten Ort für alle
+        for sid in self.partners:
+            options = self.places_of(sid)
+            pick = next((c for c in (chosen.get(sid), legacy) if c in options), next(iter(options), None))
+            if pick:
+                self.place_ids[sid] = pick
         self._saved_runs = {sid: run for sid, run in (stored.get("runs") or {}).items() if sid in self.partners}
 
     def _read_subentries(self) -> None:
@@ -178,26 +187,45 @@ class SpielSaisonManager:
             d = sub.data
             if sub.subentry_type == SUBENTRY_PARTNER:
                 self.partners[sid] = PartnerCfg(
-                    sid, d[CONF_NAME], int(d.get(CONF_NUMBER) or 1), list(d.get(CONF_CAMS) or [])
-                )
-            elif sub.subentry_type == SUBENTRY_PLACE:
-                self.places[sid] = PlaceCfg(
                     sid,
                     d[CONF_NAME],
-                    ptz_preset=int(d.get(CONF_PTZ_PRESET) or 0),
-                    prepare_on=_target(d.get(CONF_PREPARE_ON)),
-                    cover=d.get(CONF_COVER) or "",
-                    cover_position=int(d.get(CONF_COVER_POSITION, DEFAULT_COVER_POSITION)),
-                    start_off=_target(d.get(CONF_START_OFF)),
-                    start_on=_target(d.get(CONF_START_ON)),
-                    end_off=_target(d.get(CONF_END_OFF)),
-                    end_on=_target(d.get(CONF_END_ON)),
+                    int(d.get(CONF_NUMBER) or 1),
                     announce_entity=d.get(CONF_ANNOUNCE_ENTITY) or "",
                     announce_start=d.get(CONF_ANNOUNCE_START) or "",
                     announce_end=d.get(CONF_ANNOUNCE_END) or "",
-                    lead_s=int(d.get(CONF_LEAD_SECONDS, DEFAULT_LEAD_SECONDS)),
-                    end_s=int(d.get(CONF_END_SECONDS, DEFAULT_END_SECONDS)),
                 )
+        for sid, sub in self.entry.subentries.items():
+            d = sub.data
+            if sub.subentry_type != SUBENTRY_PLACE:
+                continue
+            if d.get(CONF_PARTNER) not in self.partners:
+                _LOGGER.warning("Ort %s gehört zu keinem Spielpartner und wird nicht benutzt", d.get(CONF_NAME))
+                continue
+            cams = list(d.get(CONF_CAMS) or [])
+            self.places[sid] = PlaceCfg(
+                sid,
+                d[CONF_NAME],
+                d[CONF_PARTNER],
+                cams=cams,
+                cam_presets={
+                    eid: int(number)
+                    for eid, number in (d.get(CONF_CAM_PRESETS) or {}).items()
+                    if eid in cams and number
+                },
+                prepare_on=_target(d.get(CONF_PREPARE_ON)),
+                cover=d.get(CONF_COVER) or "",
+                cover_position=int(d.get(CONF_COVER_POSITION, DEFAULT_COVER_POSITION)),
+                start_off=_target(d.get(CONF_START_OFF)),
+                start_on=_target(d.get(CONF_START_ON)),
+                end_off=_target(d.get(CONF_END_OFF)),
+                end_on=_target(d.get(CONF_END_ON)),
+                lead_s=int(d.get(CONF_LEAD_SECONDS, DEFAULT_LEAD_SECONDS)),
+                end_s=int(d.get(CONF_END_SECONDS, DEFAULT_END_SECONDS)),
+            )
+
+    def places_of(self, sid: str) -> dict[str, PlaceCfg]:
+        """Die Orte eines Spielpartners (Subentry-ID -> Ort)."""
+        return {pid: place for pid, place in self.places.items() if place.partner_id == sid}
 
     async def _save(self) -> None:
         runs = {
@@ -206,7 +234,7 @@ class SpielSaisonManager:
             if run["phase"] == PHASE_RECORDING
         }
         await self._store.async_save(
-            {"partners": {sid: asdict(s) for sid, s in self.states.items()}, "place": self.place_id, "runs": runs}
+            {"partners": {sid: asdict(s) for sid, s in self.states.items()}, "places": self.place_ids, "runs": runs}
         )
 
     @callback
@@ -270,15 +298,7 @@ class SpielSaisonManager:
         return RecorderClient(async_get_clientsession(self.hass), url, key)
 
     def cam_name(self, entity_id: str) -> str:
-        """Anzeigename einer Kamera: Gerätename, sonst Name der Entity."""
-        ent = er.async_get(self.hass).async_get(entity_id)
-        if ent and ent.device_id and (dev := dr.async_get(self.hass).async_get(ent.device_id)):
-            name = dev.name_by_user or dev.name
-            if name:
-                return name
-        if (state := self.hass.states.get(entity_id)) and state.name:
-            return state.name
-        return (ent.name or ent.original_name) if ent and (ent.name or ent.original_name) else entity_id
+        return cam_name(self.hass, entity_id)
 
     def partner(self, ref: str) -> PartnerCfg:
         if ref in self.partners:
@@ -291,14 +311,18 @@ class SpielSaisonManager:
             translation_domain=DOMAIN, translation_key="partner_not_found", translation_placeholders={"partner": ref}
         )
 
-    def place(self, ref: str | None) -> PlaceCfg | None:
-        """Der angegebene Ort, ohne Angabe der gewählte. None, wenn es keine Orte gibt."""
+    def place(self, sid: str, ref: str | None) -> PlaceCfg | None:
+        """Ein Ort des Spielpartners: der angegebene, ohne Angabe der am Spielpartner gewählte.
+
+        None, wenn der Spielpartner keinen Ort hat.
+        """
+        options = self.places_of(sid)
         if not ref:
-            return self.places.get(self.place_id) if self.place_id else None
-        if ref in self.places:
-            return self.places[ref]
+            return options.get(self.place_ids.get(sid) or "")
+        if ref in options:
+            return options[ref]
         wanted = logic.norm(ref)
-        for p in self.places.values():
+        for p in options.values():
             if wanted == logic.norm(p.name):
                 return p
         raise ServiceValidationError(
@@ -307,17 +331,20 @@ class SpielSaisonManager:
 
     @callback
     def _entity_registry_updated(self, event: Event) -> None:
-        """Wird eine Kamera-Entity umbenannt, ziehen die Spielpartner mit."""
+        """Wird eine Kamera-Entity umbenannt, ziehen die Orte mit."""
         old, new = event.data["old_entity_id"], event.data["entity_id"]
-        for sid, p in self.partners.items():
-            if old in p.cams:
+        for sid, place in self.places.items():
+            if old in place.cams:
                 sub = self.entry.subentries[sid]
-                cams = [new if c == old else c for c in sub.data[CONF_CAMS]]
-                self.hass.config_entries.async_update_subentry(self.entry, sub, data={**sub.data, CONF_CAMS: cams})
-
-    def _is_ctronics(self, entity_id: str) -> bool:
-        ent = er.async_get(self.hass).async_get(entity_id)
-        return bool(ent and ent.platform == CTRONICS_DOMAIN)
+                presets = dict(sub.data.get(CONF_CAM_PRESETS) or {})
+                if old in presets:
+                    presets[new] = presets.pop(old)
+                data = {
+                    **sub.data,
+                    CONF_CAMS: [new if c == old else c for c in sub.data[CONF_CAMS]],
+                    CONF_CAM_PRESETS: presets,
+                }
+                self.hass.config_entries.async_update_subentry(self.entry, sub, data=data)
 
     # ------------------------------------------------------------------ Recorder
     async def _poll_recorder(self, _now: datetime | None) -> None:
@@ -450,9 +477,10 @@ class SpielSaisonManager:
         self.notify()
         return True
 
-    async def async_select_place(self, sid: str) -> None:
-        if sid in self.places:
-            self.place_id = sid
+    async def async_select_place(self, sid: str, place_id: str) -> None:
+        """Den Ort wählen, den Vorbereiten und Aufnahme des Spielpartners verwenden."""
+        if place_id in self.places_of(sid):
+            self.place_ids[sid] = place_id
             await self._save()
             self.notify()
 
@@ -469,9 +497,9 @@ class SpielSaisonManager:
         if target:
             await self._call("homeassistant", service, dict(target))
 
-    async def _announce(self, place: PlaceCfg, text: str) -> None:
-        if place.announce_entity and text:
-            await self._call("notify", "send_message", {"entity_id": place.announce_entity, "message": text})
+    async def _announce(self, partner: PartnerCfg, text: str) -> None:
+        if partner.announce_entity and text:
+            await self._call("notify", "send_message", {"entity_id": partner.announce_entity, "message": text})
 
     async def _stage_prepare(self, place: PlaceCfg) -> None:
         await self._turn("turn_on", place.prepare_on)
@@ -480,27 +508,29 @@ class SpielSaisonManager:
                 "cover", "set_cover_position", {"entity_id": place.cover, "position": place.cover_position}
             )
 
-    async def _stage_start(self, place: PlaceCfg, cams: list[str]) -> None:
-        ctronics = [eid for eid in cams if self._is_ctronics(eid)]
-        if place.ptz_preset and ctronics and self.hass.services.has_service(CTRONICS_DOMAIN, "ptz_goto_preset"):
-            await self._call(CTRONICS_DOMAIN, "ptz_goto_preset", {"entity_id": ctronics, "preset": place.ptz_preset})
+    async def _stage_start(self, partner: PartnerCfg, place: PlaceCfg, cams: list[str]) -> None:
+        by_preset: dict[int, list[str]] = {}  # Kameras mit derselben Position in einem Aufruf
+        for eid in cams:
+            if (number := place.cam_presets.get(eid)) and is_ctronics(self.hass, eid):
+                by_preset.setdefault(number, []).append(eid)
+        if self.hass.services.has_service(CTRONICS_DOMAIN, "ptz_goto_preset"):
+            for number, eids in by_preset.items():
+                await self._call(CTRONICS_DOMAIN, "ptz_goto_preset", {"entity_id": eids, "preset": number})
         await self._turn("turn_off", place.start_off)
         await self._turn("turn_on", place.start_on)
-        await self._announce(place, place.announce_start)
+        await self._announce(partner, partner.announce_start)
 
-    async def _stage_end(self, place: PlaceCfg, *, wait: bool = True) -> None:
+    async def _stage_end(self, partner: PartnerCfg, place: PlaceCfg, *, wait: bool = True) -> None:
         if wait and place.end_s:
             await asyncio.sleep(place.end_s)
         await self._turn("turn_off", place.end_off)
         await self._turn("turn_on", place.end_on)
-        await self._announce(place, place.announce_end)
+        await self._announce(partner, partner.announce_end)
 
     async def async_prepare(self, ref: str, place_ref: str | None = None) -> dict[str, Any]:
         """Neue Saison beginnen (einmal pro Tag) und den Ort vorbereiten, ohne die Aufnahme zu starten."""
         p = self.partner(ref)
-        place = self.place(place_ref)
-        if place is None:
-            raise ServiceValidationError(translation_domain=DOMAIN, translation_key="no_place")
+        place = self._place_or_raise(p, place_ref)
         new_season = self.phase(p.subentry_id) == PHASE_IDLE and await self._begin_season(p)
         await self._stage_prepare(place)
         self._set_message(f"{p.name}: prepared ({place.name})")
@@ -511,6 +541,14 @@ class SpielSaisonManager:
             "season": self.states[p.subentry_id].season,
             "new_season": new_season,
         }
+
+    def _place_or_raise(self, p: PartnerCfg, place_ref: str | None) -> PlaceCfg:
+        place = self.place(p.subentry_id, place_ref)
+        if place is None:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="no_place", translation_placeholders={"partner": p.name}
+            )
+        return place
 
     # ---------------------------------------------------------------------- Start
     async def _stream_url(self, entity_id: str) -> str | None:
@@ -523,7 +561,7 @@ class SpielSaisonManager:
     async def async_start_recording(self, ref: str, place_ref: str | None = None) -> dict[str, Any]:
         """Aufnahme eines Spielpartners starten. Beginn-Schritt und Vorlauf laufen danach im Hintergrund."""
         p = self.partner(ref)
-        place = self.place(place_ref)
+        place = self._place_or_raise(p, place_ref)
         sid = p.subentry_id
         client = self._recorder()
         async with self._lock:
@@ -546,7 +584,7 @@ class SpielSaisonManager:
             busy = self._busy_cam_ids(sid)
             skipped: list[dict[str, str]] = []
             ready: list[tuple[str, str]] = []
-            for eid in p.cams:
+            for eid in place.cams:
                 if self.hass.states.get(eid) is None:
                     skipped.append({"cam": eid, "reason": "missing"})
                 elif eid in busy:
@@ -572,7 +610,7 @@ class SpielSaisonManager:
             ]
             run = {
                 "phase": PHASE_STARTING,
-                "place": place.subentry_id if place else None,
+                "place": place.subentry_id,
                 "no": self.states[sid].count_season + 1,
                 "start": dt_util.utcnow().isoformat(),
                 "folder": folder,
@@ -589,7 +627,7 @@ class SpielSaisonManager:
         return {
             "started": True,
             "partner": p.name,
-            "place": place.name if place else None,
+            "place": place.name,
             "cams": [c["name"] for c in cams],
             "skipped": skipped,
             "folder": "/".join(folder),
@@ -633,23 +671,23 @@ class SpielSaisonManager:
         if run and run.get("folder"):
             return list(run["folder"])
         p = self.partners[sid]
-        names = [self.cam_name(eid) for eid in p.cams] or ["Cam"]
-        return self._plan(p, self.place(None), dt_util.now(), names)[0]
+        place = self.place(sid, None)
+        names = [self.cam_name(eid) for eid in place.cams] if place else []
+        return self._plan(p, place, dt_util.now(), names or ["Cam"])[0]
 
     async def _start_sequence(
         self,
         p: PartnerCfg,
-        place: PlaceCfg | None,
+        place: PlaceCfg,
         run: dict[str, Any],
         cams: list[dict[str, str]],
         client: RecorderClient,
     ) -> None:
         sid = p.subentry_id
         try:
-            if place:
-                await self._stage_start(place, run["cams"])
-                if place.lead_s:
-                    await asyncio.sleep(place.lead_s)
+            await self._stage_start(p, place, run["cams"])
+            if place.lead_s:
+                await asyncio.sleep(place.lead_s)
             await client.start(run["folder"], cams, run["session"], sid)
         except RecorderError as err:
             _LOGGER.warning("%s: Aufnahme konnte nicht starten: %s", p.name, err)
@@ -674,7 +712,7 @@ class SpielSaisonManager:
                 "partner_id": sid,
                 "season": st.season,
                 "recording": st.count_season,
-                "place": place.name if place else None,
+                "place": place.name,
                 "folder": "/".join(run["folder"]),
                 "cams": run["cams"],
             },
@@ -751,8 +789,8 @@ class SpielSaisonManager:
 
     async def _end_sequence(self, sid: str, place: PlaceCfg | None, *, wait: bool) -> None:
         try:
-            if place:
-                await self._stage_end(place, wait=wait)
+            if place and (p := self.partners.get(sid)):
+                await self._stage_end(p, place, wait=wait)
         finally:
             self.runs.pop(sid, None)
             if self._tasks.get(sid) is asyncio.current_task():

@@ -122,13 +122,24 @@ def service_calls(hass: HomeAssistant) -> list[ServiceCall]:
     return calls
 
 
-def make_partner(name: str, number: int, cams: list[str]) -> dict[str, Any]:
-    return {"name": name, "number": number, "cams": cams}
+def make_partner(name: str, number: int, **fields: Any) -> dict[str, Any]:
+    """Subentry-Daten eines Spielpartners (Ansage über `announce_entity`, `announce_start`, `announce_end`)."""
+    return {"name": name, "number": number, **fields}
 
 
-def make_place(name: str, **fields: Any) -> dict[str, Any]:
+def make_place(
+    name: str, partner: str = "Frank", cams: tuple[str, ...] = ("camera.fuchs", "camera.hase"), **fields: Any
+) -> dict[str, Any]:
     """Subentry-Daten eines Ortes ohne Vorlauf und ohne Pause (die Tests warten nicht)."""
-    return {"name": name, "lead_seconds": 0, "end_seconds": 0, **fields}
+    return {
+        "name": name,
+        "partner": f"p_{partner}",
+        "cams": list(cams),
+        "cam_presets": {},
+        "lead_seconds": 0,
+        "end_seconds": 0,
+        **fields,
+    }
 
 
 def add_cameras(hass: HomeAssistant, *names: str) -> None:
@@ -154,9 +165,18 @@ async def setup_entry(
     hass: HomeAssistant,
     partners: list[dict[str, Any]] | None = None,
     places: list[dict[str, Any]] | None = None,
+    *,
+    minor_version: int = 3,
     **data: Any,
 ) -> MockConfigEntry:
-    """Richtet Spiel Saison ein (Subentry-IDs: 'p_<Name>' für Spielpartner und 'o_<Name>' für Orte)."""
+    """Richtet Spiel Saison ein.
+
+    Subentry-IDs: 'p_<Name>' für Spielpartner, 'o_<Name>' für Orte (bei gleichem Namen 'o_<Name>_<Spielpartner>').
+    """
+    place_ids: list[str] = []
+    for place in places or []:
+        sid = f"o_{place['name']}"
+        place_ids.append(sid if sid not in place_ids else f"{sid}_{place['partner'].removeprefix('p_')}")
     subentries = [
         ConfigSubentryData(
             subentry_type="partner",
@@ -170,17 +190,18 @@ async def setup_entry(
         ConfigSubentryData(
             subentry_type="place",
             title=place["name"],
-            unique_id=place["name"].lower(),
-            subentry_id=f"o_{place['name']}",
+            unique_id=f"{place.get('partner', '')}:{place['name'].lower()}",
+            subentry_id=sid,
             data=place,
         )
-        for place in places or []
+        for sid, place in zip(place_ids, places or [], strict=True)
     ]
     entry = MockConfigEntry(
         domain=DOMAIN,
         title="Spiel Saison",
         data={"recorder_url": URL, "recorder_key": KEY, "base_folder": "Spielen", **data},
         subentries_data=subentries,
+        minor_version=minor_version,
     )
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
