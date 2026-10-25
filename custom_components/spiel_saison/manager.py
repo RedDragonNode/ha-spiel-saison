@@ -20,6 +20,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_track_state_change_event, async_track_time_interval
 from homeassistant.helpers.storage import Store
+from homeassistant.util import color as color_util
 from homeassistant.util import dt as dt_util
 
 from . import logic
@@ -69,6 +70,8 @@ from .const import (
     LIGHT_BRIGHTNESS,
     LIGHT_COLOR_DELAY_S,
     LIGHT_RGB,
+    MAX_KELVIN,
+    MIN_KELVIN,
     OPT_FINISH,
     OPT_PREPARE,
     PHASE_IDLE,
@@ -87,6 +90,7 @@ from .const import (
     STORAGE_VERSION,
     SUBENTRY_PARTNER,
     SUBENTRY_PLACE,
+    WHITE_SATURATION,
 )
 from .recorder_client import RecorderAuthError, RecorderClient, RecorderError
 
@@ -629,7 +633,13 @@ class SpielSaisonManager:
         if LIGHT_BRIGHTNESS in look:
             data["brightness_pct"] = int(look[LIGHT_BRIGHTNESS])
         if LIGHT_RGB in look:
-            data["rgb_color"] = [int(part) for part in look[LIGHT_RGB]]
+            red, green, blue = (int(part) for part in look[LIGHT_RGB])
+            if max(red, green, blue) and color_util.color_RGB_to_hs(red, green, blue)[1] < WHITE_SATURATION:
+                # Weiß (fast ohne Farbe) bekommt die Lampe als Farbtemperatur, nicht als Farbton mit Sättigung nahe null
+                kelvin = color_util.color_xy_to_temperature(*color_util.color_RGB_to_xy(red, green, blue))
+                data["color_temp_kelvin"] = max(MIN_KELVIN, min(MAX_KELVIN, kelvin))
+            else:
+                data["rgb_color"] = [red, green, blue]
         return data
 
     async def _lights_on(self, lights: dict[str, dict[str, Any]]) -> None:
@@ -640,7 +650,7 @@ class SpielSaisonManager:
         """
         for entity_id, look in lights.items():
             await self._call("light", "turn_on", self._light_data(entity_id, look))
-        coloured = {entity_id: look for entity_id, look in lights.items() if LIGHT_RGB in look}
+        coloured = {entity_id: look for entity_id, look in lights.items() if LIGHT_RGB in look}  # auch Weiß
         if coloured:
             await asyncio.sleep(LIGHT_COLOR_DELAY_S)
             for entity_id, look in coloured.items():

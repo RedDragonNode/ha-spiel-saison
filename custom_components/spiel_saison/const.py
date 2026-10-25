@@ -65,6 +65,9 @@ DEFAULT_END_SECONDS = 10
 DEFAULT_COVER_POSITION = 50
 DEFAULT_FINISH_COVER_POSITION = 0
 DEFAULT_END_SWITCH_WAIT = 120  # Sekunden, so lange wartet „Saison beenden“ höchstens auf den Endschalter
+WHITE_SATURATION = 10.0  # Prozent: ein Licht mit weniger Sättigung wird als Weiß über die Farbtemperatur eingestellt
+MIN_KELVIN = 2000  # so warm und so kalt darf das Weiß sein, die Lampe begrenzt es auf ihren Bereich
+MAX_KELVIN = 6500
 LIGHT_COLOR_DELAY_S = 2.0  # so lange nach dem Einschalten schickt „Saison …“ die Farbe der Lichter noch einmal
 
 TARGET_FIELDS = (CONF_START_OFF, CONF_START_ON, CONF_END_OFF, CONF_END_ON)

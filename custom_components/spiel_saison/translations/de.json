@@ -199,7 +199,7 @@
       },
       "prepare_lights": {
         "title": "Saison vorbereiten: Lichter",
-        "description": "Wähle für jedes Licht die Farbe und die Helligkeit (in Prozent), mit der es angeht. Lässt du ein Feld leer, geht das Licht so an, wie es zuletzt war."
+        "description": "Wähle für jedes Licht die Farbe und die Helligkeit (in Prozent), mit der es angeht. Lässt du ein Feld leer, geht das Licht so an, wie es zuletzt war. Ein Weiß oder Grau (fast ohne Farbe) schickt die Integration als Farbtemperatur an die Lampe."
       },
       "finish": {
         "title": "Saison beenden",
@@ -217,7 +217,7 @@
       },
       "finish_lights": {
         "title": "Saison beenden: Lichter",
-        "description": "Wähle für jedes Licht die Farbe und die Helligkeit (in Prozent), mit der es angeht. Lässt du ein Feld leer, geht das Licht so an, wie es zuletzt war."
+        "description": "Wähle für jedes Licht die Farbe und die Helligkeit (in Prozent), mit der es angeht. Lässt du ein Feld leer, geht das Licht so an, wie es zuletzt war. Ein Weiß oder Grau (fast ohne Farbe) schickt die Integration als Farbtemperatur an die Lampe."
       }
     }
   },

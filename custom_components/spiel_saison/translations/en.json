@@ -199,7 +199,7 @@
       },
       "prepare_lights": {
         "title": "Prepare season: lights",
-        "description": "Choose the colour and the brightness (in percent) each light is turned on with. If you leave a field empty, the light comes on as it was last."
+        "description": "Choose the colour and the brightness (in percent) each light is turned on with. If you leave a field empty, the light comes on as it was last. A white or grey (almost no colour) is sent to the lamp as a colour temperature."
       },
       "finish": {
         "title": "End season",
@@ -217,7 +217,7 @@
       },
       "finish_lights": {
         "title": "End season: lights",
-        "description": "Choose the colour and the brightness (in percent) each light is turned on with. If you leave a field empty, the light comes on as it was last."
+        "description": "Choose the colour and the brightness (in percent) each light is turned on with. If you leave a field empty, the light comes on as it was last. A white or grey (almost no colour) is sent to the lamp as a colour temperature."
       }
     }
   },
