@@ -250,9 +250,6 @@
     "button": {
       "prepare": {
         "name": "Prepare"
-      },
-      "new_season": {
-        "name": "Start new season"
       }
     },
     "number": {
@@ -299,7 +296,7 @@
     },
     "prepare": {
       "name": "Prepare place",
-      "description": "Begins the season of the day if there is none for today yet, turns on the targets for preparing the place and moves the cover or winch, without recording.",
+      "description": "Begins the season of the day if there is none for today yet, creates the season folder in the target folder if it is missing, turns on the targets for preparing the place and moves the cover or winch, without recording.",
       "fields": {
         "partner": {
           "name": "Play partner",
@@ -343,9 +340,6 @@
     },
     "recording_running": {
       "message": "A recording is running for {partner}. A new season is possible only afterwards."
-    },
-    "season_today": {
-      "message": "There is already a season for {partner} today. A new one can begin tomorrow at the earliest."
     },
     "still_stopping": {
       "message": "The end step is still running for {partner}. Please wait a moment."

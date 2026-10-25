@@ -255,8 +255,8 @@ class SpielSaisonManager:
             state.pref_on.append(key)
         elif not on and key in state.pref_on:
             state.pref_on.remove(key)
+        self.notify()  # der Schalter zeigt sofort den neuen Zustand, das Speichern dauert etwas länger
         await self._save()
-        self.notify()
 
     def places_of(self, sid: str) -> dict[str, PlaceCfg]:
         """Die Orte eines Spielpartners (Subentry-ID -> Ort)."""
@@ -576,15 +576,36 @@ class SpielSaisonManager:
         p = self.partner(ref)
         place = self._place_or_raise(p, place_ref)
         new_season = self.phase(p.subentry_id) == PHASE_IDLE and await self._begin_season(p)
+        folder = self._season_folder(p, place, dt_util.now())
+        created = await self._ensure_folder(p, folder)
         await self._stage_prepare(place)
-        self._set_message(f"{p.name}: prepared ({place.name})")
+        if created is not None:  # sonst bleibt die Meldung zum Saison-Ordner stehen
+            self._set_message(f"{p.name}: prepared ({place.name})")
         self.notify()
         return {
             "partner": p.name,
             "place": place.name,
             "season": self.states[p.subentry_id].season,
             "new_season": new_season,
+            "folder": "/".join(folder),
+            "folder_created": created,
         }
+
+    async def _ensure_folder(self, p: PartnerCfg, folder: list[str]) -> bool | None:
+        """Ordner der aktuellen Saison anlegen, falls es ihn im Zielordner noch nicht gibt.
+
+        True = neu angelegt, False = gab es schon, None = die App ließ sich nicht fragen (das Vorbereiten läuft weiter).
+        """
+        try:
+            client = self._recorder()
+            if folder[-1] in await client.list_dirs(folder[:-1]):
+                return False
+            await client.make_dir(folder)
+        except (RecorderError, ServiceValidationError) as err:
+            _LOGGER.warning("%s: Saison-Ordner %s nicht angelegt: %s", p.name, "/".join(folder), err)
+            self._set_message(f"{p.name}: {err}")
+            return None
+        return True
 
     def _place_or_raise(self, p: PartnerCfg, place_ref: str | None) -> PlaceCfg:
         place = self.place(p.subentry_id, place_ref)
@@ -677,20 +698,22 @@ class SpielSaisonManager:
             "folder": "/".join(folder),
         }
 
-    def _plan(
-        self, p: PartnerCfg, place: PlaceCfg | None, now: datetime, names: list[str]
-    ) -> tuple[list[str], str, list[str]]:
-        """Zielordner, Sitzungsname und Dateinamen der Kameras für die nächste Aufnahme."""
+    def _pattern_values(self, p: PartnerCfg, place: PlaceCfg | None) -> dict[str, str]:
+        """Werte für die Platzhalter der Ordner- und Dateimuster."""
         st = self.states[p.subentry_id]
-        values = {
+        return {
             "partner": p.name,
             "nr": logic.pad(p.number),
             "saison": logic.pad(st.season),
             "aufnahme": logic.pad(st.count_season + 1),
             "ort": place.name if place else "",
         }
-        season_day = datetime.combine(date.fromisoformat(st.season_start), time())
-        folder = [
+
+    def _season_folder(self, p: PartnerCfg, place: PlaceCfg | None, now: datetime) -> list[str]:
+        """Ordner der aktuellen Saison: Basis-Ordner, Ordner des Spielpartners, Ordner der Saison."""
+        values = self._pattern_values(p, place)
+        season_day = datetime.combine(date.fromisoformat(self.states[p.subentry_id].season_start), time())
+        return [
             *logic.split_path(self._data(CONF_BASE_FOLDER, DEFAULT_BASE_FOLDER)),
             *logic.split_path(
                 logic.render_pattern(self._data(CONF_PARTNER_PATTERN, DEFAULT_PARTNER_PATTERN), now, values)
@@ -699,6 +722,13 @@ class SpielSaisonManager:
                 logic.render_pattern(self._data(CONF_SEASON_PATTERN, DEFAULT_SEASON_PATTERN), season_day, values)
             ),
         ]
+
+    def _plan(
+        self, p: PartnerCfg, place: PlaceCfg | None, now: datetime, names: list[str]
+    ) -> tuple[list[str], str, list[str]]:
+        """Zielordner, Sitzungsname und Dateinamen der Kameras für die nächste Aufnahme."""
+        values = self._pattern_values(p, place)
+        folder = self._season_folder(p, place, now)
         file_pattern = self._data(CONF_FILE_PATTERN, DEFAULT_FILE_PATTERN)
         stems = logic.unique_stems(
             [

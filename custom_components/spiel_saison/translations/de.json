@@ -250,9 +250,6 @@
     "button": {
       "prepare": {
         "name": "Vorbereiten"
-      },
-      "new_season": {
-        "name": "Neue Saison beginnen"
       }
     },
     "number": {
@@ -299,7 +296,7 @@
     },
     "prepare": {
       "name": "Ort vorbereiten",
-      "description": "Beginnt die Saison des Tages, falls es für heute noch keine gibt, schaltet die Ziele zum Vorbereiten des Ortes ein und fährt das Rollo oder die Winde, ohne aufzunehmen.",
+      "description": "Beginnt die Saison des Tages, falls es für heute noch keine gibt, legt den Ordner der Saison im Zielordner an, falls er fehlt, schaltet die Ziele zum Vorbereiten des Ortes ein und fährt das Rollo oder die Winde, ohne aufzunehmen.",
       "fields": {
         "partner": {
           "name": "Spielpartner",
@@ -343,9 +340,6 @@
     },
     "recording_running": {
       "message": "Bei {partner} läuft eine Aufnahme. Eine neue Saison geht erst danach."
-    },
-    "season_today": {
-      "message": "Für {partner} gibt es heute schon eine Saison. Eine neue beginnt frühestens morgen."
     },
     "still_stopping": {
       "message": "Bei {partner} läuft noch der Ende-Schritt. Bitte kurz warten."

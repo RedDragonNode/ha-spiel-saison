@@ -47,6 +47,10 @@ class RecorderClient:
     async def list_dirs(self, path: list[str]) -> list[str]:
         return (await self._request("GET", "/ls", params={"path": "/".join(path)})).get("ordner", [])
 
+    async def make_dir(self, path: list[str]) -> str:
+        """Legt den Ordner samt Oberordnern an (gibt es ihn schon, bleibt er)."""
+        return (await self._request("POST", "/mkdir", json={"path": path})).get("pfad", "")
+
     async def start(self, path: list[str], cams: list[dict[str, str]], session: str, profile: str) -> dict[str, Any]:
         return await self._request(
             "POST", "/start", json={"path": path, "cams": cams, "session": session, "profile": profile}

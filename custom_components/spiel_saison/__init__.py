@@ -97,7 +97,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SpielSaisonConfigEntry) 
     manager = SpielSaisonManager(hass, entry)
     await manager.async_load()
     entry.runtime_data = manager
-    _drop_stale_preference_entities(hass, entry, manager)
+    _drop_stale_entities(hass, entry, manager)
     manager.hub_device_id = (
         dr.async_get(hass)
         .async_get_or_create(
@@ -208,8 +208,8 @@ def _move_cams_to_places(hass: HomeAssistant, entry: ConfigEntry) -> None:
                 )
 
 
-def _drop_stale_preference_entities(hass: HomeAssistant, entry: ConfigEntry, manager: SpielSaisonManager) -> None:
-    """Entities von Vorlieben, die aus einem Spielpartner gestrichen wurden, aus der Registry nehmen."""
+def _drop_stale_entities(hass: HomeAssistant, entry: ConfigEntry, manager: SpielSaisonManager) -> None:
+    """Entities gestrichener Vorlieben und der entfernten Taste „Neue Saison“ aus der Registry nehmen."""
     wanted = {
         f"{entry.entry_id}_{sid}_{preference_unique_part(kind, name, role)}"
         for sid, partner in manager.partners.items()
@@ -218,7 +218,8 @@ def _drop_stale_preference_entities(hass: HomeAssistant, entry: ConfigEntry, man
     }
     registry = er.async_get(hass)
     for ent in er.async_entries_for_config_entry(registry, entry.entry_id):
-        if "_pref_" in ent.unique_id and ent.unique_id not in wanted:
+        stale_preference = "_pref_" in ent.unique_id and ent.unique_id not in wanted
+        if stale_preference or ent.unique_id.endswith("_new_season"):  # die Taste „Neue Saison“ gibt es nicht mehr
             registry.async_remove(ent.entity_id)
 
 

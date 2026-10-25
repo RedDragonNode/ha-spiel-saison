@@ -4,10 +4,8 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-import pytest
 from homeassistant.const import STATE_OFF, STATE_ON, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
@@ -44,7 +42,6 @@ async def test_partner_entities_exist(hass: HomeAssistant) -> None:
         ("switch", "recording"),
         ("select", "place"),
         ("button", "prepare"),
-        ("button", "new_season"),
         ("number", "season"),
         ("number", "recordings_season"),
         ("number", "recordings_total"),
@@ -133,7 +130,7 @@ async def test_the_counters_can_be_set_by_hand_and_survive_a_reload(hass: HomeAs
     assert hass.states.get(total).state == "41"
 
 
-async def test_the_buttons(hass: HomeAssistant, service_calls) -> None:
+async def test_the_prepare_button(hass: HomeAssistant, service_calls) -> None:
     entry = await _setup(hass, [make_place("Bett", prepare_on={"entity_id": ["switch.winde"]})])
     entry.runtime_data.states[FRANK].season_start = (dt_util.now().date() - timedelta(days=1)).isoformat()
     season = partner_entity(hass, entry, FRANK, "number", "season")
@@ -144,25 +141,24 @@ async def test_the_buttons(hass: HomeAssistant, service_calls) -> None:
 
     assert [(c.domain, c.service) for c in service_calls] == [("homeassistant", "turn_on")]
     assert hass.states.get(season).state == "2"  # Vorbereiten hat die Saison des Tages begonnen
-
-    with pytest.raises(ServiceValidationError) as err:  # für heute gibt es schon eine
-        await hass.services.async_call(
-            "button", "press", {"entity_id": partner_entity(hass, entry, FRANK, "button", "new_season")}, blocking=True
-        )
-
-    assert err.value.translation_key == "season_today"
-    assert hass.states.get(season).state == "2"
+    assert (
+        "mkdir",
+        ["Spielen", "Spielen mit Frank #02", f"Saison 02 vom {dt_util.now():%d,%m,%Y}"],
+    ) in FakeRecorder.calls
 
 
-async def test_the_new_season_button_works_on_a_new_day(hass: HomeAssistant) -> None:
+async def test_there_is_no_new_season_button_any_more(hass: HomeAssistant) -> None:
     entry = await _setup(hass)
-    entry.runtime_data.states[FRANK].season_start = (dt_util.now().date() - timedelta(days=1)).isoformat()
-
-    await hass.services.async_call(
-        "button", "press", {"entity_id": partner_entity(hass, entry, FRANK, "button", "new_season")}, blocking=True
+    registry = er.async_get(hass)
+    stale = registry.async_get_or_create(
+        "button", DOMAIN, f"{entry.entry_id}_{FRANK}_new_season", config_entry=entry, config_subentry_id=FRANK
     )
 
-    assert hass.states.get(partner_entity(hass, entry, FRANK, "number", "season")).state == "2"
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert registry.async_get(stale.entity_id) is None  # der Eintrag der alten Taste wird entfernt
+    assert er.async_get(hass).async_get_entity_id("button", DOMAIN, f"{entry.entry_id}_{FRANK}_new_season") is None
 
 
 async def test_the_place_select_sits_at_the_partner_and_is_remembered(hass: HomeAssistant) -> None:

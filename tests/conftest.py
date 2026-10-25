@@ -25,6 +25,7 @@ class FakeRecorder:
 
     calls: ClassVar[list[tuple]] = []
     remote_profiles: ClassVar[dict[str, Any]] = {}
+    dirs: ClassVar[set[tuple[str, ...]]] = set()  # vorhandene Ordner der App
     fail: Exception | None = None
     start_fail: Exception | None = None
 
@@ -48,7 +49,16 @@ class FakeRecorder:
 
     async def list_dirs(self, path: list[str]) -> list[str]:
         self._check()
-        return []
+        prefix = tuple(path)
+        return sorted(
+            {d[len(prefix)] for d in FakeRecorder.dirs if len(d) > len(prefix) and d[: len(prefix)] == prefix}
+        )
+
+    async def make_dir(self, path: list[str]) -> str:
+        self._check()
+        FakeRecorder.calls.append(("mkdir", path))
+        FakeRecorder.dirs.update(tuple(path[: i + 1]) for i in range(len(path)))
+        return "/".join(path)
 
     async def start(self, path: list[str], cams: list[dict], session: str, profile: str) -> dict:
         self._check()
@@ -75,7 +85,7 @@ def auto_enable_custom_integrations(enable_custom_integrations: None) -> None:
 
 @pytest.fixture(autouse=True)
 def fake_recorder() -> Generator[type[FakeRecorder]]:
-    FakeRecorder.calls, FakeRecorder.remote_profiles = [], {}
+    FakeRecorder.calls, FakeRecorder.remote_profiles, FakeRecorder.dirs = [], {}, set()
     FakeRecorder.fail = FakeRecorder.start_fail = None
     with (
         patch("custom_components.spiel_saison.manager.RecorderClient", FakeRecorder),

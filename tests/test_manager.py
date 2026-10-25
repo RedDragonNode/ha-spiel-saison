@@ -63,6 +63,15 @@ async def _prepare(hass: HomeAssistant, partner: str = "Frank") -> dict:
     return await hass.services.async_call(DOMAIN, "prepare", {"partner": partner}, blocking=True, return_response=True)
 
 
+def _season_folder(partner: str, number: int, season: int) -> list[str]:
+    """Ordner der Saison in den Tests (Basis-Ordner „Spielen“, Muster wie im Standard, Saison beginnt heute)."""
+    return [
+        "Spielen",
+        f"Spielen mit {partner} #{number:02d}",
+        f"Saison {season:02d} vom {dt_util.now():%d,%m,%Y}",
+    ]
+
+
 def _days_ago(days: int) -> str:
     return (dt_util.now().date() - timedelta(days=days)).isoformat()
 
@@ -326,7 +335,14 @@ async def test_prepare_turns_things_on_and_moves_the_cover(hass, stream, cams, s
         DOMAIN, "prepare", {"partner": "Frank"}, blocking=True, return_response=True
     )
 
-    assert result == {"partner": "Frank", "place": "Schaukel", "season": 1, "new_season": False}
+    assert result == {
+        "partner": "Frank",
+        "place": "Schaukel",
+        "season": 1,
+        "new_season": False,
+        "folder": "/".join(_season_folder("Frank", 2, 1)),
+        "folder_created": True,
+    }
     assert _summary(service_calls) == [
         ("homeassistant", "turn_on", {"entity_id": ["switch.winde"]}),
         ("cover", "set_cover_position", {"entity_id": "cover.winde", "position": 50}),
@@ -349,7 +365,43 @@ async def test_prepare_begins_the_season_of_the_day_once(hass, stream, cams) -> 
     (event,) = season_events
     assert event.data["season"] == 2
     await _start(hass)
-    assert FakeRecorder.calls[0][1][2] == f"Saison 02 vom {dt_util.now():%d,%m,%Y}"
+    start = next(call for call in FakeRecorder.calls if call[0] == "start")
+    assert start[1][2] == f"Saison 02 vom {dt_util.now():%d,%m,%Y}"
+
+
+async def test_prepare_creates_the_folder_of_the_current_season_once(hass, stream, cams) -> None:
+    entry = await _setup(hass, [make_place("Schaukel")])
+    _runtime(entry).states[FRANK].season_start = _days_ago(1)
+    folder = _season_folder("Frank", 2, 2)
+
+    first = await _prepare(hass)
+    again = await _prepare(hass)
+
+    assert (first["folder"], first["folder_created"]) == ("/".join(folder), True)
+    assert again["folder_created"] is False  # gibt es jetzt schon
+    assert [call for call in FakeRecorder.calls if call[0] == "mkdir"] == [("mkdir", folder)]
+
+
+async def test_prepare_keeps_an_existing_season_folder(hass, stream, cams) -> None:
+    await _setup(hass, [make_place("Schaukel")])
+    folder = _season_folder("Frank", 2, 1)
+    FakeRecorder.dirs.update(tuple(folder[: i + 1]) for i in range(len(folder)))
+
+    result = await _prepare(hass)
+
+    assert result["folder_created"] is False
+    assert [call for call in FakeRecorder.calls if call[0] == "mkdir"] == []
+
+
+async def test_prepare_goes_on_when_the_recorder_cannot_be_asked(hass, stream, cams, service_calls) -> None:
+    entry = await _setup(hass, [make_place("Schaukel", prepare_on=BED)])
+    FakeRecorder.fail = RecorderError("Recorder-App nicht erreichbar (test)")
+
+    result = await _prepare(hass)
+
+    assert result["folder_created"] is None
+    assert _summary(service_calls) == [("homeassistant", "turn_on", BED)]  # das Licht geht trotzdem an
+    assert "nicht erreichbar" in _runtime(entry).message
 
 
 async def test_prepare_leaves_the_season_alone_while_recording(hass, stream, cams) -> None:
