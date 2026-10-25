@@ -47,6 +47,10 @@ CONF_PTZ_PRESET = "ptz_preset"  # bis 0.1.x: eine PTZ-Position für alle Kameras
 CONF_PREPARE_ON = "prepare_on"  # Ziele (Entities, Bereiche, Labels), die beim Vorbereiten eingeschaltet werden
 CONF_COVER = "cover"  # Rollo, Winde oder Ähnliches, das beim Vorbereiten auf eine Position fährt
 CONF_COVER_POSITION = "cover_position"
+CONF_FINISH_OFF = "finish_off"  # Ziele, die beim Beenden der Saison ausgeschaltet werden
+CONF_FINISH_ON = "finish_on"  # Ziele, die beim Beenden der Saison eingeschaltet werden
+CONF_FINISH_COVER = "finish_cover"  # Rollo, Winde oder Ähnliches, das beim Beenden der Saison auf eine Position fährt
+CONF_FINISH_COVER_POSITION = "finish_cover_position"
 CONF_START_OFF = "start_off"
 CONF_START_ON = "start_on"
 CONF_END_OFF = "end_off"
@@ -57,8 +61,17 @@ CONF_END_SECONDS = "end_seconds"  # Pause zwischen Aufnahme-Ende und Ende-Schrit
 DEFAULT_LEAD_SECONDS = 30
 DEFAULT_END_SECONDS = 10
 DEFAULT_COVER_POSITION = 50
+DEFAULT_FINISH_COVER_POSITION = 0
 
-TARGET_FIELDS = (CONF_PREPARE_ON, CONF_START_OFF, CONF_START_ON, CONF_END_OFF, CONF_END_ON)
+TARGET_FIELDS = (
+    CONF_PREPARE_ON,
+    CONF_START_OFF,
+    CONF_START_ON,
+    CONF_END_OFF,
+    CONF_END_ON,
+    CONF_FINISH_OFF,
+    CONF_FINISH_ON,
+)
 
 CTRONICS_DOMAIN = "ctronics_cam"  # nur diese Kameras fahren eine PTZ-Position an
 CTRONICS_PRESETS_OPTION = "presets"  # Option der Ctronics-Integration: Zeilen wie "1: Schaukel"
@@ -70,12 +83,14 @@ SERVICE_START = "start_recording"
 SERVICE_STOP = "stop_recording"
 SERVICE_PREPARE = "prepare"
 SERVICE_NEW_SEASON = "new_season"
+SERVICE_END_SEASON = "end_season"
 ATTR_PARTNER = "partner"
 ATTR_PLACE = "place"
 
 EVENT_STARTED = f"{DOMAIN}_recording_started"
 EVENT_STOPPED = f"{DOMAIN}_recording_stopped"
 EVENT_SEASON = f"{DOMAIN}_season_started"
+EVENT_SEASON_ENDED = f"{DOMAIN}_season_ended"
 
 PHASE_IDLE = "idle"
 PHASE_STARTING = "starting"

@@ -296,7 +296,15 @@ def _shown(step: dict) -> dict:
 
 
 async def _add_place(
-    hass: HomeAssistant, entry, basics: dict, *, ptz: dict | None = None, begin=None, end=None
+    hass: HomeAssistant,
+    entry,
+    basics: dict,
+    *,
+    ptz: dict | None = None,
+    prepare=None,
+    begin=None,
+    end=None,
+    finish=None,
 ) -> dict:
     flow = await _start_sub(hass, entry, "place")
     assert flow["step_id"] == "user"
@@ -306,10 +314,14 @@ async def _add_place(
     if ptz is not None:
         assert result["step_id"] == "user_ptz"
         result = await hass.config_entries.subentries.async_configure(flow["flow_id"], ptz)
+    assert result["step_id"] == "user_prepare"
+    result = await hass.config_entries.subentries.async_configure(flow["flow_id"], prepare or {})
     assert result["step_id"] == "user_begin"
     result = await hass.config_entries.subentries.async_configure(flow["flow_id"], begin or {})
     assert result["step_id"] == "user_end"
-    return await hass.config_entries.subentries.async_configure(flow["flow_id"], end or {})
+    result = await hass.config_entries.subentries.async_configure(flow["flow_id"], end or {})
+    assert result["step_id"] == "user_finish"
+    return await hass.config_entries.subentries.async_configure(flow["flow_id"], finish or {})
 
 
 def _ctronics(entity_registry, hass: HomeAssistant, *names: str, presets: str = "") -> None:
@@ -323,7 +335,7 @@ def _ctronics(entity_registry, hass: HomeAssistant, *names: str, presets: str = 
     add_cameras(hass, *names)
 
 
-async def test_place_flow_without_ctronics_cameras_has_three_steps(hass: HomeAssistant) -> None:
+async def test_place_flow_without_ctronics_cameras_skips_the_position_step(hass: HomeAssistant) -> None:
     add_cameras(hass, "fuchs", "hase")
     entry = await setup_entry(hass, [make_partner("Frank", 2)])
 
@@ -337,14 +349,15 @@ async def test_place_flow_without_ctronics_cameras_has_three_steps(hass: HomeAss
             "lead_seconds": 30,
             "end_seconds": 10,
         },
-        begin={
-            "prepare_on": {"entity_id": ["switch.winde"]},
-            "cover": "cover.winde",
-            "cover_position": 40,
-            "start_off": {"label_id": ["spielen_auf_schaukel"]},
-            "start_on": {"label_id": ["spielen_auf_bett"]},
-        },
+        prepare={"prepare_on": {"entity_id": ["switch.winde"]}, "cover": "cover.winde", "cover_position": 40},
+        begin={"start_off": {"label_id": ["spielen_auf_schaukel"]}, "start_on": {"label_id": ["spielen_auf_bett"]}},
         end={"end_off": {"label_id": ["spielen_auf_bett"]}, "end_on": {"entity_id": ["switch.schrank"]}},
+        finish={
+            "finish_off": {"entity_id": ["switch.winde"]},
+            "finish_on": {"label_id": ["spielen_normal"]},
+            "finish_cover": "cover.rollo",
+            "finish_cover_position": 100,
+        },
     )
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -366,7 +379,37 @@ async def test_place_flow_without_ctronics_cameras_has_three_steps(hass: HomeAss
         "start_on": {"label_id": ["spielen_auf_bett"]},
         "end_off": {"label_id": ["spielen_auf_bett"]},
         "end_on": {"entity_id": ["switch.schrank"]},
+        "finish_off": {"entity_id": ["switch.winde"]},
+        "finish_on": {"label_id": ["spielen_normal"]},
+        "finish_cover": "cover.rollo",
+        "finish_cover_position": 100,
     }
+
+
+async def test_place_flow_season_steps_come_first_and_last_and_have_their_own_defaults(hass: HomeAssistant) -> None:
+    add_cameras(hass, "fuchs")
+    entry = await setup_entry(hass, [make_partner("Frank", 2)])
+    flow = await _start_sub(hass, entry, "place")
+    step = await hass.config_entries.subentries.async_configure(
+        flow["flow_id"], {"name": "Bett", "partner": "p_Frank", "cams": ["camera.fuchs"]}
+    )
+
+    assert step["step_id"] == "user_prepare"
+    assert [str(k) for k in step["data_schema"].schema] == ["prepare_on", "cover", "cover_position"]
+    assert _shown(step) == {"cover_position": 50}
+    step = await hass.config_entries.subentries.async_configure(flow["flow_id"], {})
+    assert [str(k) for k in step["data_schema"].schema] == ["start_off", "start_on"]  # nur der Beginn der Aufnahme
+    step = await hass.config_entries.subentries.async_configure(flow["flow_id"], {})
+    assert [str(k) for k in step["data_schema"].schema] == ["end_off", "end_on"]  # nur das Ende der Aufnahme
+    step = await hass.config_entries.subentries.async_configure(flow["flow_id"], {})
+    assert step["step_id"] == "user_finish"
+    assert [str(k) for k in step["data_schema"].schema] == [
+        "finish_off",
+        "finish_on",
+        "finish_cover",
+        "finish_cover_position",
+    ]
+    assert _shown(step) == {"finish_cover_position": 0}
 
 
 async def test_place_flow_partner_dropdown_sits_below_the_name(hass: HomeAssistant) -> None:
@@ -416,8 +459,10 @@ async def test_place_flow_asks_for_a_position_of_every_ctronics_camera(
     ]
 
     step = await hass.config_entries.subentries.async_configure(flow["flow_id"], {"Fuchs": "20", "Hase": "0"})
-    assert step["step_id"] == "user_begin"
-    step = await hass.config_entries.subentries.async_configure(flow["flow_id"], {})
+    assert step["step_id"] == "user_prepare"
+    for expected in ("user_begin", "user_end", "user_finish"):
+        step = await hass.config_entries.subentries.async_configure(flow["flow_id"], {})
+        assert step["step_id"] == expected
     done = await hass.config_entries.subentries.async_configure(flow["flow_id"], {})
 
     assert done["type"] is FlowResultType.CREATE_ENTRY
@@ -495,6 +540,9 @@ async def test_place_reconfigure_walks_the_steps_and_shows_saved_values(
                 cam_presets={"camera.fuchs": 20},
                 start_on={"entity_id": ["light.bett"]},
                 end_on={"entity_id": ["x.y"]},
+                finish_off={"entity_id": ["switch.winde"]},
+                finish_cover="cover.rollo",
+                finish_cover_position=80,
             )
         ],
     )
@@ -507,16 +555,25 @@ async def test_place_reconfigure_walks_the_steps_and_shows_saved_values(
     )
     assert ptz["step_id"] == "reconfigure_ptz"
     assert _shown(ptz) == {"Fuchs": "20"}  # die gespeicherte Position ist vorgewählt
-    begin = await hass.config_entries.subentries.async_configure(flow["flow_id"], {"Fuchs": "1"})
+    prepare = await hass.config_entries.subentries.async_configure(flow["flow_id"], {"Fuchs": "1"})
+    assert prepare["step_id"] == "reconfigure_prepare"
+    begin = await hass.config_entries.subentries.async_configure(flow["flow_id"], {})
     assert begin["step_id"] == "reconfigure_begin"
     assert _shown(begin)["start_on"] == {"entity_id": ["light.bett"]}
     end = await hass.config_entries.subentries.async_configure(flow["flow_id"], {})
     assert end["step_id"] == "reconfigure_end"
-    done = await hass.config_entries.subentries.async_configure(flow["flow_id"], {"end_on": {"entity_id": ["x.y"]}})
+    finish = await hass.config_entries.subentries.async_configure(flow["flow_id"], {"end_on": {"entity_id": ["x.y"]}})
+    assert finish["step_id"] == "reconfigure_finish"
+    assert _shown(finish)["finish_cover"] == "cover.rollo" and _shown(finish)["finish_cover_position"] == 80
+    done = await hass.config_entries.subentries.async_configure(
+        flow["flow_id"], {"finish_on": {"entity_id": ["light.zimmer"]}}
+    )
 
     assert done["type"] is FlowResultType.ABORT
     assert done["reason"] == "reconfigure_successful"
     data = entry.subentries["o_Bett"].data
     assert data["cam_presets"] == {"camera.fuchs": 1}
     assert data["end_on"] == {"entity_id": ["x.y"]} and "start_on" not in data
+    assert data["finish_on"] == {"entity_id": ["light.zimmer"]}
+    assert "finish_off" not in data and "finish_cover" not in data  # was nicht mehr gewählt ist, fällt weg
     assert entry.subentries["o_Bett"].title == "Bett (Frank)"

@@ -11,7 +11,14 @@ from homeassistant.helpers import issue_registry as ir
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import async_capture_events, async_fire_time_changed
 
-from custom_components.spiel_saison.const import DOMAIN, EVENT_SEASON, EVENT_STARTED, EVENT_STOPPED, POLL_SECONDS
+from custom_components.spiel_saison.const import (
+    DOMAIN,
+    EVENT_SEASON,
+    EVENT_SEASON_ENDED,
+    EVENT_STARTED,
+    EVENT_STOPPED,
+    POLL_SECONDS,
+)
 from custom_components.spiel_saison.recorder_client import RecorderError
 
 from .conftest import FakeRecorder, add_cameras, make_partner, make_place, setup_entry
@@ -20,6 +27,12 @@ FRANK = "p_Frank"
 TOBIAS = "p_Tobias"
 BED = {"entity_id": ["light.bett"]}
 SWING = {"entity_id": ["light.schaukel"]}
+FINISH = {
+    "finish_off": {"entity_id": ["switch.winde"]},
+    "finish_on": {"entity_id": ["light.zimmer"]},
+    "finish_cover": "cover.rollo",
+    "finish_cover_position": 100,
+}
 
 
 def _summary(calls: list[ServiceCall]) -> list[tuple[str, str, dict]]:
@@ -61,6 +74,12 @@ async def _stop(hass: HomeAssistant, partner: str = "Frank") -> dict:
 
 async def _prepare(hass: HomeAssistant, partner: str = "Frank") -> dict:
     return await hass.services.async_call(DOMAIN, "prepare", {"partner": partner}, blocking=True, return_response=True)
+
+
+async def _end_season(hass: HomeAssistant, partner: str = "Frank", **data) -> dict:
+    return await hass.services.async_call(
+        DOMAIN, "end_season", {"partner": partner, **data}, blocking=True, return_response=True
+    )
 
 
 def _season_folder(partner: str, number: int, season: int) -> list[str]:
@@ -419,6 +438,94 @@ async def test_prepare_needs_a_place(hass, cams) -> None:
     await setup_entry(hass, [make_partner("Frank", 2)], [])
     with pytest.raises(ServiceValidationError) as err:
         await hass.services.async_call(DOMAIN, "prepare", {"partner": "Frank"}, blocking=True)
+    assert err.value.translation_key == "no_place"
+
+
+async def test_end_season_runs_the_finish_step_of_the_place(hass, cams, service_calls) -> None:
+    entry = await _setup(hass, [make_place("Schaukel", **FINISH)])
+    events = async_capture_events(hass, EVENT_SEASON_ENDED)
+    state = _runtime(entry).states[FRANK]
+    state.count_season, state.seconds_season = 3, 200.4
+
+    result = await _end_season(hass)
+    await hass.async_block_till_done()
+
+    assert result == {"partner": "Frank", "place": "Schaukel", "season": 1, "recordings": 3, "seconds": 200}
+    assert _summary(service_calls) == [
+        ("homeassistant", "turn_off", {"entity_id": ["switch.winde"]}),
+        ("homeassistant", "turn_on", {"entity_id": ["light.zimmer"]}),
+        ("cover", "set_cover_position", {"entity_id": "cover.rollo", "position": 100}),
+    ]
+    assert [e.data for e in events] == [{**result, "partner_id": FRANK, "nickname": "", "start": state.season_start}]
+    assert state.season == 1 and state.count_season == 3  # beenden zählt nichts um
+
+
+async def test_end_season_takes_the_named_place(hass, cams, service_calls) -> None:
+    await _setup(hass, [make_place("Schaukel", finish_off=SWING), make_place("Bett", finish_off=BED)])
+
+    result = await _end_season(hass, place="bett")
+
+    assert result["place"] == "Bett"
+    assert _summary(service_calls) == [("homeassistant", "turn_off", BED)]
+
+
+async def test_end_season_without_settings_still_ends_it(hass, cams, service_calls) -> None:
+    await _setup(hass, [make_place("Schaukel")])
+    events = async_capture_events(hass, EVENT_SEASON_ENDED)
+
+    await _end_season(hass)
+    await hass.async_block_till_done()
+
+    assert service_calls == [] and len(events) == 1
+
+
+async def test_the_buttons_use_only_their_own_settings(hass, stream, cams, service_calls) -> None:
+    place = make_place(
+        "Schaukel",
+        prepare_on={"entity_id": ["switch.vorher"]},
+        cover="cover.winde",
+        start_on=SWING,
+        end_off=SWING,
+        **FINISH,
+    )
+    await _setup(hass, [place])
+
+    await _prepare(hass)
+    assert _summary(service_calls) == [
+        ("homeassistant", "turn_on", {"entity_id": ["switch.vorher"]}),
+        ("cover", "set_cover_position", {"entity_id": "cover.winde", "position": 50}),
+    ]
+
+    service_calls.clear()
+    await _start(hass)
+    await _stop(hass)
+    assert _summary(service_calls) == [  # Beginn und Ende der Aufnahme kennen weder „vorbereiten“ noch „beenden“
+        ("homeassistant", "turn_on", SWING),
+        ("homeassistant", "turn_off", SWING),
+    ]
+
+    service_calls.clear()
+    await _end_season(hass)
+    assert [c.service for c in service_calls] == ["turn_off", "turn_on", "set_cover_position"]
+    assert "switch.vorher" not in str(_summary(service_calls)) and "light.schaukel" not in str(_summary(service_calls))
+
+
+async def test_end_season_is_refused_while_recording(hass, stream, cams, service_calls) -> None:
+    entry = await _setup(hass, [make_place("Schaukel", **FINISH)])
+    await _start(hass)
+    service_calls.clear()
+
+    with pytest.raises(ServiceValidationError) as err:
+        await _end_season(hass)
+
+    assert err.value.translation_key == "season_end_recording_running"
+    assert service_calls == [] and _runtime(entry).phase(FRANK) == "recording"
+
+
+async def test_end_season_needs_a_place(hass, cams) -> None:
+    await setup_entry(hass, [make_partner("Frank", 2)], [])
+    with pytest.raises(ServiceValidationError) as err:
+        await _end_season(hass)
     assert err.value.translation_key == "no_place"
 
 

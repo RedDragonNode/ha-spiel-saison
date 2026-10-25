@@ -35,6 +35,7 @@ from .const import (
     COUNTED_KINDS,
     DOMAIN,
     OLD_CAM_NUMBER_PART,
+    SERVICE_END_SEASON,
     SERVICE_NEW_SEASON,
     SERVICE_PREPARE,
     SERVICE_START,
@@ -81,6 +82,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     async def new_season(call: ServiceCall) -> dict:
         return await _manager(hass).async_new_season(call.data[ATTR_PARTNER])
 
+    async def end_season(call: ServiceCall) -> dict:
+        return await _manager(hass).async_end_season(call.data[ATTR_PARTNER], call.data.get(ATTR_PLACE))
+
     with_place = vol.Schema({vol.Required(ATTR_PARTNER): cv.string, vol.Optional(ATTR_PLACE): cv.string})
     partner_only = vol.Schema({vol.Required(ATTR_PARTNER): cv.string})
     for name, handler, schema in (
@@ -88,6 +92,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         (SERVICE_STOP, stop, partner_only),
         (SERVICE_PREPARE, prepare, with_place),
         (SERVICE_NEW_SEASON, new_season, partner_only),
+        (SERVICE_END_SEASON, end_season, with_place),
     ):
         hass.services.async_register(DOMAIN, name, handler, schema, supports_response=SupportsResponse.OPTIONAL)
     return True

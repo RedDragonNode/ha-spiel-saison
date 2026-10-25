@@ -1,4 +1,4 @@
-"""Taste je Spielpartner: Saison beginnen, Saison-Ordner anlegen und den Ort vorbereiten."""
+"""Tasten je Spielpartner: Saison vorbereiten (mit Saison-Ordner) und Saison beenden."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ async def async_setup_entry(
 ) -> None:
     m = entry.runtime_data
     for sid, partner in m.partners.items():
-        async_add_entities([PrepareButton(m, partner)], config_subentry_id=sid)
+        async_add_entities([PrepareButton(m, partner), EndSeasonButton(m, partner)], config_subentry_id=sid)
 
 
 class PrepareButton(PartnerEntity, ButtonEntity):
@@ -29,3 +29,15 @@ class PrepareButton(PartnerEntity, ButtonEntity):
 
     async def async_press(self) -> None:
         await self.manager.async_prepare(self.sid)
+
+
+class EndSeasonButton(PartnerEntity, ButtonEntity):
+    """Beendet die Saison: führt den Beenden-Schritt des gewählten Ortes aus (nicht während einer Aufnahme)."""
+
+    _attr_translation_key = "end_season"
+
+    def __init__(self, m: SpielSaisonManager, partner: PartnerCfg) -> None:
+        super().__init__(m, partner, "end_season")
+
+    async def async_press(self) -> None:
+        await self.manager.async_end_season(self.sid)

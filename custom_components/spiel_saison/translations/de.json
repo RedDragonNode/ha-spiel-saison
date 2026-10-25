@@ -97,7 +97,7 @@
       "step": {
         "user": {
           "title": "Neuer Ort",
-          "description": "Ein Ort ist ein Platz, an dem ein Spielpartner spielt, zum Beispiel Bett oder Schaukel. Er bringt die Kameras mit, die dort aufnehmen. Beim Start fährt die Integration die Ctronics-Kameras auf ihre PTZ-Position, schaltet Licht und Geräte und wartet den Vorlauf ab, bevor die Aufnahme beginnt. Beim Ende wartet sie die Pause ab und stellt alles zurück. Im nächsten Schritt wählst du für jede Ctronics-Kamera die PTZ-Position, danach, was geschaltet wird.",
+          "description": "Ein Ort ist ein Platz, an dem ein Spielpartner spielt, zum Beispiel Bett oder Schaukel. Er bringt die Kameras mit, die dort aufnehmen. Beim Start fährt die Integration die Ctronics-Kameras auf ihre PTZ-Position, schaltet Licht und Geräte und wartet den Vorlauf ab, bevor die Aufnahme beginnt. Beim Ende wartet sie die Pause ab und stellt alles zurück. Im nächsten Schritt wählst du für jede Ctronics-Kamera die PTZ-Position, danach, was bei „Saison vorbereiten“, beim Beginn, beim Ende und bei „Saison beenden“ geschaltet wird.",
           "data": {
             "name": "Name",
             "partner": "Spielpartner",
@@ -110,29 +110,45 @@
           "title": "PTZ-Position je Kamera",
           "description": "Für jede Ctronics-Kamera dieses Ortes wählst du die gespeicherte Position, die beim Start angefahren wird. Die Namen stammen aus den Optionen der Integration Ctronics 4K Cam. Ohne Namen stehen die Nummern 1 bis 64 zur Wahl. „Nicht bewegen“ lässt die Kamera, wo sie ist. Andere Kameras werden nicht bewegt und stehen hier nicht."
         },
-        "user_begin": {
-          "title": "Vorbereiten und Beginn",
-          "description": "Alles ist optional. Du kannst Entities, Geräte, Bereiche oder Labels wählen, auch Szenen und Skripte. „Vorbereiten“ läuft, wenn du die Taste „Vorbereiten“ drückst. Das Rollo, die Winde oder Ähnliches fährt dabei auf die Position. Zum Beginn werden erst die Ziele bei „Ausschalten“ ausgeschaltet und dann die bei „Einschalten“ eingeschaltet.",
+        "user_prepare": {
+          "title": "Saison vorbereiten",
+          "description": "Gilt nur für die Taste „Saison vorbereiten“, nicht für die Aufnahme. Alles ist optional. Du kannst Entities, Geräte, Bereiche oder Labels wählen, auch Szenen und Skripte. Die Taste schaltet die Ziele ein und fährt das Rollo, die Winde oder Ähnliches auf die Position.",
           "data": {
             "prepare_on": "Beim Vorbereiten einschalten",
             "cover": "Beim Vorbereiten fahren (Rollo, Winde)",
-            "cover_position": "Position (0 bis 100)",
+            "cover_position": "Position (0 bis 100)"
+          }
+        },
+        "user_begin": {
+          "title": "Beginn",
+          "description": "Gilt beim Start einer Aufnahme. Alles ist optional. Zum Beginn werden erst die Ziele bei „Ausschalten“ ausgeschaltet und dann die bei „Einschalten“ eingeschaltet.",
+          "data": {
             "start_off": "Beim Beginn ausschalten",
             "start_on": "Beim Beginn einschalten"
           }
         },
         "user_end": {
           "title": "Ende",
-          "description": "Alles ist optional. Nach der Pause werden erst die Ziele bei „Ausschalten“ ausgeschaltet und dann die bei „Einschalten“ eingeschaltet. Erst die Schaltfläche „Ort speichern“ speichert den Ort.",
+          "description": "Gilt beim Ende einer Aufnahme. Alles ist optional. Nach der Pause werden erst die Ziele bei „Ausschalten“ ausgeschaltet und dann die bei „Einschalten“ eingeschaltet.",
           "data": {
             "end_off": "Beim Ende ausschalten",
             "end_on": "Beim Ende einschalten"
+          }
+        },
+        "user_finish": {
+          "title": "Saison beenden",
+          "description": "Gilt nur für die Taste „Saison beenden“, nicht für die Aufnahme. Alles ist optional. Die Taste schaltet erst die Ziele bei „Ausschalten“ aus, dann die bei „Einschalten“ ein und fährt danach das Rollo, die Winde oder Ähnliches auf die Position. Erst die Schaltfläche „Ort speichern“ speichert den Ort.",
+          "data": {
+            "finish_off": "Beim Beenden ausschalten",
+            "finish_on": "Beim Beenden einschalten",
+            "finish_cover": "Beim Beenden fahren (Rollo, Winde)",
+            "finish_cover_position": "Position (0 bis 100)"
           },
           "submit": "Ort speichern"
         },
         "reconfigure": {
           "title": "Ort bearbeiten",
-          "description": "Ändere die Einstellungen des Ortes. Im nächsten Schritt stehen die PTZ-Positionen der Kameras, danach die Ziele, die geschaltet werden.",
+          "description": "Ändere die Einstellungen des Ortes. Im nächsten Schritt stehen die PTZ-Positionen der Kameras, danach die Ziele, die bei „Saison vorbereiten“, beim Beginn, beim Ende und bei „Saison beenden“ geschaltet werden.",
           "data": {
             "name": "Name",
             "partner": "Spielpartner",
@@ -145,23 +161,39 @@
           "title": "PTZ-Position je Kamera",
           "description": "Für jede Ctronics-Kamera dieses Ortes wählst du die gespeicherte Position, die beim Start angefahren wird. Die Namen stammen aus den Optionen der Integration Ctronics 4K Cam. Ohne Namen stehen die Nummern 1 bis 64 zur Wahl. „Nicht bewegen“ lässt die Kamera, wo sie ist. Andere Kameras werden nicht bewegt und stehen hier nicht."
         },
-        "reconfigure_begin": {
-          "title": "Vorbereiten und Beginn",
-          "description": "Alles ist optional. Zum Beginn werden erst die Ziele bei „Ausschalten“ ausgeschaltet und dann die bei „Einschalten“ eingeschaltet.",
+        "reconfigure_prepare": {
+          "title": "Saison vorbereiten",
+          "description": "Gilt nur für die Taste „Saison vorbereiten“, nicht für die Aufnahme. Alles ist optional. Du kannst Entities, Geräte, Bereiche oder Labels wählen, auch Szenen und Skripte. Die Taste schaltet die Ziele ein und fährt das Rollo, die Winde oder Ähnliches auf die Position.",
           "data": {
             "prepare_on": "Beim Vorbereiten einschalten",
             "cover": "Beim Vorbereiten fahren (Rollo, Winde)",
-            "cover_position": "Position (0 bis 100)",
+            "cover_position": "Position (0 bis 100)"
+          }
+        },
+        "reconfigure_begin": {
+          "title": "Beginn",
+          "description": "Gilt beim Start einer Aufnahme. Alles ist optional. Zum Beginn werden erst die Ziele bei „Ausschalten“ ausgeschaltet und dann die bei „Einschalten“ eingeschaltet.",
+          "data": {
             "start_off": "Beim Beginn ausschalten",
             "start_on": "Beim Beginn einschalten"
           }
         },
         "reconfigure_end": {
           "title": "Ende",
-          "description": "Alles ist optional. Erst die Schaltfläche „Ort speichern“ speichert die Änderungen.",
+          "description": "Gilt beim Ende einer Aufnahme. Alles ist optional. Nach der Pause werden erst die Ziele bei „Ausschalten“ ausgeschaltet und dann die bei „Einschalten“ eingeschaltet.",
           "data": {
             "end_off": "Beim Ende ausschalten",
             "end_on": "Beim Ende einschalten"
+          }
+        },
+        "reconfigure_finish": {
+          "title": "Saison beenden",
+          "description": "Gilt nur für die Taste „Saison beenden“, nicht für die Aufnahme. Alles ist optional. Die Taste schaltet erst die Ziele bei „Ausschalten“ aus, dann die bei „Einschalten“ ein und fährt danach das Rollo, die Winde oder Ähnliches auf die Position. Erst die Schaltfläche „Ort speichern“ speichert die Änderungen.",
+          "data": {
+            "finish_off": "Beim Beenden ausschalten",
+            "finish_on": "Beim Beenden einschalten",
+            "finish_cover": "Beim Beenden fahren (Rollo, Winde)",
+            "finish_cover_position": "Position (0 bis 100)"
           },
           "submit": "Ort speichern"
         }
@@ -249,7 +281,10 @@
     },
     "button": {
       "prepare": {
-        "name": "Vorbereiten"
+        "name": "Saison vorbereiten"
+      },
+      "end_season": {
+        "name": "Saison beenden"
       }
     },
     "number": {
@@ -295,8 +330,8 @@
       }
     },
     "prepare": {
-      "name": "Ort vorbereiten",
-      "description": "Beginnt die Saison des Tages, falls es für heute noch keine gibt, legt den Ordner der Saison im Zielordner an, falls er fehlt, schaltet die Ziele zum Vorbereiten des Ortes ein und fährt das Rollo oder die Winde, ohne aufzunehmen.",
+      "name": "Saison vorbereiten",
+      "description": "Beginnt die Saison des Tages, falls es für heute noch keine gibt, legt den Ordner der Saison im Zielordner an, falls er fehlt, schaltet die Ziele von „Saison vorbereiten“ des Ortes ein und fährt das Rollo oder die Winde, ohne aufzunehmen.",
       "fields": {
         "partner": {
           "name": "Spielpartner",
@@ -315,6 +350,20 @@
         "partner": {
           "name": "Spielpartner",
           "description": "Name des Spielpartners."
+        }
+      }
+    },
+    "end_season": {
+      "name": "Saison beenden",
+      "description": "Führt „Saison beenden“ des Ortes aus: schaltet die Ziele aus und ein und fährt das Rollo oder die Winde. Das geht nur, wenn bei dem Spielpartner keine Aufnahme läuft.",
+      "fields": {
+        "partner": {
+          "name": "Spielpartner",
+          "description": "Name des Spielpartners."
+        },
+        "place": {
+          "name": "Ort",
+          "description": "Name des Ortes dieses Spielpartners. Ohne Angabe gilt der Ort, der am Gerät des Spielpartners gewählt ist."
         }
       }
     }
@@ -343,6 +392,9 @@
     },
     "still_stopping": {
       "message": "Bei {partner} läuft noch der Ende-Schritt. Bitte kurz warten."
+    },
+    "season_end_recording_running": {
+      "message": "Bei {partner} läuft eine Aufnahme. Die Saison lässt sich erst danach beenden."
     }
   },
   "issues": {

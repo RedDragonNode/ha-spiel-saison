@@ -97,7 +97,7 @@
       "step": {
         "user": {
           "title": "New place",
-          "description": "A place is where a play partner plays, for example bed or swing. It brings the cameras that record there. On start the integration moves the Ctronics cameras to their PTZ position, switches lights and devices and waits for the lead time before the recording begins. On end it waits for the pause and puts everything back. The next step lets you choose the PTZ position of each Ctronics camera, then what is switched.",
+          "description": "A place is where a play partner plays, for example bed or swing. It brings the cameras that record there. On start the integration moves the Ctronics cameras to their PTZ position, switches lights and devices and waits for the lead time before the recording begins. On end it waits for the pause and puts everything back. The next step lets you choose the PTZ position for every Ctronics camera, then what is switched for “Prepare season”, at the beginning, at the end and for “End season”.",
           "data": {
             "name": "Name",
             "partner": "Play partner",
@@ -110,29 +110,45 @@
           "title": "PTZ position per camera",
           "description": "For each Ctronics camera of this place you choose the stored position it moves to on start. The names come from the options of the Ctronics 4K Cam integration. Without names the numbers 1 to 64 are offered. “Do not move” leaves the camera where it is. Other cameras are not moved and do not appear here."
         },
-        "user_begin": {
-          "title": "Prepare and start",
-          "description": "Everything is optional. You can choose entities, devices, areas or labels, also scenes and scripts. “Prepare” runs when you press the “Prepare” button. The cover, winch or similar moves to the position then. On start the targets under “Turn off” are turned off first, then the ones under “Turn on” are turned on.",
+        "user_prepare": {
+          "title": "Prepare season",
+          "description": "Applies only to the “Prepare season” button, not to the recording. Everything is optional. You can choose entities, devices, areas or labels, also scenes and scripts. The button turns the targets on and moves the cover, winch or similar to the position.",
           "data": {
             "prepare_on": "Turn on when preparing",
             "cover": "Move when preparing (cover, winch)",
-            "cover_position": "Position (0 to 100)",
-            "start_off": "Turn off on start",
-            "start_on": "Turn on on start"
+            "cover_position": "Position (0 to 100)"
+          }
+        },
+        "user_begin": {
+          "title": "Beginning",
+          "description": "Applies when a recording starts. Everything is optional. On start the targets under “Turn off” are turned off first, then the ones under “Turn on” are turned on.",
+          "data": {
+            "start_off": "Turn off at the beginning",
+            "start_on": "Turn on at the beginning"
           }
         },
         "user_end": {
           "title": "End",
-          "description": "Everything is optional. After the pause the targets under “Turn off” are turned off first, then the ones under “Turn on” are turned on. Only the “Save place” button saves the place.",
+          "description": "Applies when a recording ends. Everything is optional. After the pause the targets under “Turn off” are turned off first, then the ones under “Turn on” are turned on.",
           "data": {
-            "end_off": "Turn off on end",
-            "end_on": "Turn on on end"
+            "end_off": "Turn off at the end",
+            "end_on": "Turn on at the end"
+          }
+        },
+        "user_finish": {
+          "title": "End season",
+          "description": "Applies only to the “End season” button, not to the recording. Everything is optional. The button turns the targets under “Turn off” off first, then the ones under “Turn on” on, and then moves the cover, winch or similar to the position. Only the “Save place” button saves the place.",
+          "data": {
+            "finish_off": "Turn off when ending the season",
+            "finish_on": "Turn on when ending the season",
+            "finish_cover": "Move when ending the season (cover, winch)",
+            "finish_cover_position": "Position (0 to 100)"
           },
           "submit": "Save place"
         },
         "reconfigure": {
           "title": "Edit place",
-          "description": "Change the settings of the place. The next step has the PTZ positions of the cameras, then the targets that are switched.",
+          "description": "Change the settings of the place. The next step holds the PTZ positions of the cameras, then the targets that are switched for “Prepare season”, at the beginning, at the end and for “End season”.",
           "data": {
             "name": "Name",
             "partner": "Play partner",
@@ -145,23 +161,39 @@
           "title": "PTZ position per camera",
           "description": "For each Ctronics camera of this place you choose the stored position it moves to on start. The names come from the options of the Ctronics 4K Cam integration. Without names the numbers 1 to 64 are offered. “Do not move” leaves the camera where it is. Other cameras are not moved and do not appear here."
         },
-        "reconfigure_begin": {
-          "title": "Prepare and start",
-          "description": "Everything is optional. On start the targets under “Turn off” are turned off first, then the ones under “Turn on” are turned on.",
+        "reconfigure_prepare": {
+          "title": "Prepare season",
+          "description": "Applies only to the “Prepare season” button, not to the recording. Everything is optional. You can choose entities, devices, areas or labels, also scenes and scripts. The button turns the targets on and moves the cover, winch or similar to the position.",
           "data": {
             "prepare_on": "Turn on when preparing",
             "cover": "Move when preparing (cover, winch)",
-            "cover_position": "Position (0 to 100)",
-            "start_off": "Turn off on start",
-            "start_on": "Turn on on start"
+            "cover_position": "Position (0 to 100)"
+          }
+        },
+        "reconfigure_begin": {
+          "title": "Beginning",
+          "description": "Applies when a recording starts. Everything is optional. On start the targets under “Turn off” are turned off first, then the ones under “Turn on” are turned on.",
+          "data": {
+            "start_off": "Turn off at the beginning",
+            "start_on": "Turn on at the beginning"
           }
         },
         "reconfigure_end": {
           "title": "End",
-          "description": "Everything is optional. Only the “Save place” button saves the changes.",
+          "description": "Applies when a recording ends. Everything is optional. After the pause the targets under “Turn off” are turned off first, then the ones under “Turn on” are turned on.",
           "data": {
-            "end_off": "Turn off on end",
-            "end_on": "Turn on on end"
+            "end_off": "Turn off at the end",
+            "end_on": "Turn on at the end"
+          }
+        },
+        "reconfigure_finish": {
+          "title": "End season",
+          "description": "Applies only to the “End season” button, not to the recording. Everything is optional. The button turns the targets under “Turn off” off first, then the ones under “Turn on” on, and then moves the cover, winch or similar to the position. Only the “Save place” button saves the changes.",
+          "data": {
+            "finish_off": "Turn off when ending the season",
+            "finish_on": "Turn on when ending the season",
+            "finish_cover": "Move when ending the season (cover, winch)",
+            "finish_cover_position": "Position (0 to 100)"
           },
           "submit": "Save place"
         }
@@ -249,7 +281,10 @@
     },
     "button": {
       "prepare": {
-        "name": "Prepare"
+        "name": "Prepare season"
+      },
+      "end_season": {
+        "name": "End season"
       }
     },
     "number": {
@@ -295,8 +330,8 @@
       }
     },
     "prepare": {
-      "name": "Prepare place",
-      "description": "Begins the season of the day if there is none for today yet, creates the season folder in the target folder if it is missing, turns on the targets for preparing the place and moves the cover or winch, without recording.",
+      "name": "Prepare season",
+      "description": "Begins the season of the day if there is none for today yet, creates the folder of the season in the target folder if it is missing, turns on the “Prepare season” targets of the place and moves the cover or winch, without recording.",
       "fields": {
         "partner": {
           "name": "Play partner",
@@ -315,6 +350,20 @@
         "partner": {
           "name": "Play partner",
           "description": "Name of the play partner."
+        }
+      }
+    },
+    "end_season": {
+      "name": "End season",
+      "description": "Runs “End season” of the place: turns the targets off and on and moves the cover or winch. This works only while no recording is running for the play partner.",
+      "fields": {
+        "partner": {
+          "name": "Play partner",
+          "description": "Name of the play partner."
+        },
+        "place": {
+          "name": "Place",
+          "description": "Name of a place of this play partner. Without it the place chosen on the play partner's device is used."
         }
       }
     }
@@ -343,6 +392,9 @@
     },
     "still_stopping": {
       "message": "The end step is still running for {partner}. Please wait a moment."
+    },
+    "season_end_recording_running": {
+      "message": "A recording is running for {partner}. The season can be ended only afterwards."
     }
   },
   "issues": {

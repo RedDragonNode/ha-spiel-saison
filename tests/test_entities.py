@@ -42,6 +42,7 @@ async def test_partner_entities_exist(hass: HomeAssistant) -> None:
         ("switch", "recording"),
         ("select", "place"),
         ("button", "prepare"),
+        ("button", "end_season"),
         ("number", "season"),
         ("number", "recordings_season"),
         ("number", "recordings_total"),
@@ -145,6 +146,31 @@ async def test_the_prepare_button(hass: HomeAssistant, service_calls) -> None:
         "mkdir",
         ["Spielen", "Spielen mit Frank #02", f"Saison 02 vom {dt_util.now():%d,%m,%Y}"],
     ) in FakeRecorder.calls
+
+
+async def test_the_end_season_button(hass: HomeAssistant, service_calls) -> None:
+    place = make_place(
+        "Bett",
+        prepare_on={"entity_id": ["switch.vorher"]},
+        finish_off={"entity_id": ["switch.winde"]},
+        finish_cover="cover.rollo",
+    )
+    entry = await _setup(hass, [place])
+    prepare = partner_entity(hass, entry, FRANK, "button", "prepare")
+    end = partner_entity(hass, entry, FRANK, "button", "end_season")
+
+    assert hass.states.get(prepare).attributes["friendly_name"] == "Play partner Frank Prepare season"
+    assert hass.states.get(end).attributes["friendly_name"] == "Play partner Frank End season"
+
+    await hass.services.async_call("button", "press", {"entity_id": end}, blocking=True)
+
+    # nur die Einstellungen von „Saison beenden“, nichts von „Saison vorbereiten“
+    assert [(c.domain, c.service, dict(c.data)) for c in service_calls] == [
+        ("homeassistant", "turn_off", {"entity_id": ["switch.winde"]}),
+        ("cover", "set_cover_position", {"entity_id": "cover.rollo", "position": 0}),
+    ]
+    season = partner_entity(hass, entry, FRANK, "number", "season")
+    assert hass.states.get(season).state == "1"  # beenden zählt die Saison nicht weiter
 
 
 async def test_there_is_no_new_season_button_any_more(hass: HomeAssistant) -> None:

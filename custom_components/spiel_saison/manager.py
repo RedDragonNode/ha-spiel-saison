@@ -37,6 +37,10 @@ from .const import (
     CONF_END_ON,
     CONF_END_SECONDS,
     CONF_FILE_PATTERN,
+    CONF_FINISH_COVER,
+    CONF_FINISH_COVER_POSITION,
+    CONF_FINISH_OFF,
+    CONF_FINISH_ON,
     CONF_LEAD_SECONDS,
     CONF_LIKES,
     CONF_NICKNAME,
@@ -56,11 +60,13 @@ from .const import (
     DEFAULT_COVER_POSITION,
     DEFAULT_END_SECONDS,
     DEFAULT_FILE_PATTERN,
+    DEFAULT_FINISH_COVER_POSITION,
     DEFAULT_LEAD_SECONDS,
     DEFAULT_PARTNER_PATTERN,
     DEFAULT_SEASON_PATTERN,
     DOMAIN,
     EVENT_SEASON,
+    EVENT_SEASON_ENDED,
     EVENT_STARTED,
     EVENT_STOPPED,
     KIND_LIKE,
@@ -114,6 +120,10 @@ class PlaceCfg:
     start_on: dict[str, Any] = field(default_factory=dict)
     end_off: dict[str, Any] = field(default_factory=dict)
     end_on: dict[str, Any] = field(default_factory=dict)
+    finish_off: dict[str, Any] = field(default_factory=dict)  # nur für die Taste „Saison beenden“
+    finish_on: dict[str, Any] = field(default_factory=dict)
+    finish_cover: str = ""
+    finish_cover_position: int = DEFAULT_FINISH_COVER_POSITION
     lead_s: int = DEFAULT_LEAD_SECONDS
     end_s: int = DEFAULT_END_SECONDS
 
@@ -235,6 +245,10 @@ class SpielSaisonManager:
                 start_on=_target(d.get(CONF_START_ON)),
                 end_off=_target(d.get(CONF_END_OFF)),
                 end_on=_target(d.get(CONF_END_ON)),
+                finish_off=_target(d.get(CONF_FINISH_OFF)),
+                finish_on=_target(d.get(CONF_FINISH_ON)),
+                finish_cover=d.get(CONF_FINISH_COVER) or "",
+                finish_cover_position=int(d.get(CONF_FINISH_COVER_POSITION, DEFAULT_FINISH_COVER_POSITION)),
                 lead_s=int(d.get(CONF_LEAD_SECONDS, DEFAULT_LEAD_SECONDS)),
                 end_s=int(d.get(CONF_END_SECONDS, DEFAULT_END_SECONDS)),
             )
@@ -552,6 +566,16 @@ class SpielSaisonManager:
                 "cover", "set_cover_position", {"entity_id": place.cover, "position": place.cover_position}
             )
 
+    async def _stage_finish(self, place: PlaceCfg) -> None:
+        await self._turn("turn_off", place.finish_off)
+        await self._turn("turn_on", place.finish_on)
+        if place.finish_cover:
+            await self._call(
+                "cover",
+                "set_cover_position",
+                {"entity_id": place.finish_cover, "position": place.finish_cover_position},
+            )
+
     async def _stage_start(self, partner: PartnerCfg, place: PlaceCfg, cams: list[str]) -> None:
         by_preset: dict[int, list[str]] = {}  # Kameras mit derselben Position in einem Aufruf
         for eid in cams:
@@ -590,6 +614,33 @@ class SpielSaisonManager:
             "folder": "/".join(folder),
             "folder_created": created,
         }
+
+    async def async_end_season(self, ref: str, place_ref: str | None = None) -> dict[str, Any]:
+        """Die Saison des Spielpartners beenden: den Beenden-Schritt des Ortes ausführen, nur ohne laufende Aufnahme."""
+        p = self.partner(ref)
+        place = self._place_or_raise(p, place_ref)
+        if self.phase(p.subentry_id) != PHASE_IDLE:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="season_end_recording_running",
+                translation_placeholders={"partner": p.name},
+            )
+        st = self.states[p.subentry_id]
+        await self._stage_finish(place)
+        result = {
+            "partner": p.name,
+            "place": place.name,
+            "season": st.season,
+            "recordings": st.count_season,
+            "seconds": round(st.seconds_season),
+        }
+        self.hass.bus.async_fire(
+            EVENT_SEASON_ENDED,
+            {**result, "partner_id": p.subentry_id, "nickname": p.nickname, "start": st.season_start},
+        )
+        self._set_message(f"{p.name}: season {st.season} ended ({place.name})")
+        self.notify()
+        return result
 
     async def _ensure_folder(self, p: PartnerCfg, folder: list[str]) -> bool | None:
         """Ordner der aktuellen Saison anlegen, falls es ihn im Zielordner noch nicht gibt.
