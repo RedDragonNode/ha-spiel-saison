@@ -14,7 +14,9 @@ from homeassistant.helpers.typing import ConfigType
 from .const import (
     ATTR_PARTNER,
     ATTR_PLACE,
+    CONF_FILE_PATTERN,
     DOMAIN,
+    OLD_CAM_NUMBER_PART,
     SERVICE_NEW_SEASON,
     SERVICE_PREPARE,
     SERVICE_START,
@@ -85,6 +87,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: SpielSaisonConfigEntry) 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     manager.async_start()
     entry.async_on_unload(entry.add_update_listener(_reload_on_change))
+    return True
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """1.1 -> 1.2: Im Dateinamen steht bei „Cam ID“ der Name der Kamera statt ihrer Nummer."""
+    if entry.version > 1:
+        return False
+    if entry.minor_version < 2:
+        data = dict(entry.data)
+        pattern = data.get(CONF_FILE_PATTERN)
+        if isinstance(pattern, str) and OLD_CAM_NUMBER_PART in pattern:
+            data[CONF_FILE_PATTERN] = pattern.replace(OLD_CAM_NUMBER_PART, "Cam ID.{cam}")
+        hass.config_entries.async_update_entry(entry, data=data, minor_version=2)
     return True
 
 

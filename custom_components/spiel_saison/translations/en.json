@@ -272,7 +272,7 @@
     },
     "prepare": {
       "name": "Prepare place",
-      "description": "Turns on the targets for preparing the place and moves the cover or winch, without recording.",
+      "description": "Begins the season of the day if there is none for today yet, turns on the targets for preparing the place and moves the cover or winch, without recording.",
       "fields": {
         "partner": {
           "name": "Play partner",
@@ -286,7 +286,7 @@
     },
     "new_season": {
       "name": "Start new season",
-      "description": "Raises the season number of a play partner and resets the counters and the statistics of the season.",
+      "description": "Raises the season number of a play partner and resets the counters and the statistics of the season. This works only once a day: if there is already a season for today, nothing changes.",
       "fields": {
         "partner": {
           "name": "Play partner",
@@ -316,6 +316,9 @@
     },
     "recording_running": {
       "message": "A recording is running for {partner}. A new season is possible only afterwards."
+    },
+    "season_today": {
+      "message": "There is already a season for {partner} today. A new one can begin tomorrow at the earliest."
     },
     "still_stopping": {
       "message": "The end step is still running for {partner}. Please wait a moment."

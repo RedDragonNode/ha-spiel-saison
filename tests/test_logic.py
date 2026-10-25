@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from custom_components.spiel_saison import logic
+from custom_components.spiel_saison.const import DEFAULT_FILE_PATTERN
 
 WHEN = datetime(2026, 10, 15, 21, 5, 9)
 
@@ -28,6 +29,11 @@ def test_render_pattern_builds_the_names_of_the_old_integration() -> None:
     assert logic.render_pattern("Saison {saison} vom %DD,%MM,%CCYY", WHEN, values) == "Saison 01 vom 15,10,2026"
     pattern = "#{nr}.{saison}.{aufnahme}.Cam ID.{cam_nr} %DD.%MM.%CCYY"
     assert logic.render_pattern(pattern, WHEN, values) == "#02.01.03.Cam ID.01 15.10.2026"
+
+
+def test_the_default_file_pattern_uses_the_name_of_the_camera() -> None:
+    values = {"nr": "02", "saison": "01", "aufnahme": "03", "cam": "Fuchsrevier", "cam_nr": "01"}
+    assert logic.render_pattern(DEFAULT_FILE_PATTERN, WHEN, values) == "#02.01.03.Cam ID.Fuchsrevier 15.10.2026"
 
 
 def test_render_pattern_time_tokens() -> None:

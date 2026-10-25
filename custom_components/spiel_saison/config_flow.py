@@ -104,7 +104,7 @@ async def _check_recorder(hass: HomeAssistant, url: str, key: str) -> str | None
 # ------------------------------------------------------------------ Verbindung
 class SpielSaisonConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
-    MINOR_VERSION = 1
+    MINOR_VERSION = 2
 
     async def _connection_step(
         self, step_id: str, user_input: dict[str, Any] | None, current: Mapping[str, Any]

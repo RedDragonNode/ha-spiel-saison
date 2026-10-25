@@ -407,7 +407,12 @@ class SpielSaisonManager:
         await self._save()
         self.notify()
 
+    def season_today(self, sid: str) -> bool:
+        """Gibt es für heute schon eine Saison? Pro Tag beginnt höchstens eine."""
+        return self.states[sid].season_start == dt_util.now().date().isoformat()
+
     async def async_new_season(self, ref: str) -> dict[str, Any]:
+        """Neue Saison beginnen, sofern es für heute noch keine gibt."""
         p = self.partner(ref)
         if self.phase(p.subentry_id) != PHASE_IDLE:
             raise ServiceValidationError(
@@ -415,7 +420,18 @@ class SpielSaisonManager:
                 translation_key="recording_running",
                 translation_placeholders={"partner": p.name},
             )
+        started = await self._begin_season(p)
         st = self.states[p.subentry_id]
+        result: dict[str, Any] = {"partner": p.name, "season": st.season, "started": started}
+        if not started:
+            result["reason"] = "already_today"
+        return result
+
+    async def _begin_season(self, p: PartnerCfg) -> bool:
+        """Saison +1, Zähler der Saison auf null. False, wenn heute schon eine Saison begonnen hat."""
+        st = self.states[p.subentry_id]
+        if self.season_today(p.subentry_id):
+            return False
         st.seasons[str(st.season)] = {
             "start": st.season_start,
             "recordings": st.count_season,
@@ -432,7 +448,7 @@ class SpielSaisonManager:
         )
         self._set_message(f"{p.name}: season {st.season}")
         self.notify()
-        return {"partner": p.name, "season": st.season}
+        return True
 
     async def async_select_place(self, sid: str) -> None:
         if sid in self.places:
@@ -480,15 +496,21 @@ class SpielSaisonManager:
         await self._announce(place, place.announce_end)
 
     async def async_prepare(self, ref: str, place_ref: str | None = None) -> dict[str, Any]:
-        """Ort vorbereiten (Licht an, Winde auf Position), ohne die Aufnahme zu starten."""
+        """Neue Saison beginnen (einmal pro Tag) und den Ort vorbereiten, ohne die Aufnahme zu starten."""
         p = self.partner(ref)
         place = self.place(place_ref)
         if place is None:
             raise ServiceValidationError(translation_domain=DOMAIN, translation_key="no_place")
+        new_season = self.phase(p.subentry_id) == PHASE_IDLE and await self._begin_season(p)
         await self._stage_prepare(place)
         self._set_message(f"{p.name}: prepared ({place.name})")
         self.notify()
-        return {"partner": p.name, "place": place.name}
+        return {
+            "partner": p.name,
+            "place": place.name,
+            "season": self.states[p.subentry_id].season,
+            "new_season": new_season,
+        }
 
     # ---------------------------------------------------------------------- Start
     async def _stream_url(self, entity_id: str) -> str | None:

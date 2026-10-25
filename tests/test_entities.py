@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from datetime import timedelta
 
+import pytest
 from homeassistant.const import STATE_OFF, STATE_ON, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
@@ -130,15 +132,33 @@ async def test_the_counters_can_be_set_by_hand_and_survive_a_reload(hass: HomeAs
 
 async def test_the_buttons(hass: HomeAssistant, service_calls) -> None:
     entry = await _setup(hass, [make_place("Bett", prepare_on={"entity_id": ["switch.winde"]})])
+    entry.runtime_data.states[FRANK].season_start = (dt_util.now().date() - timedelta(days=1)).isoformat()
+    season = partner_entity(hass, entry, FRANK, "number", "season")
 
     await hass.services.async_call(
         "button", "press", {"entity_id": partner_entity(hass, entry, FRANK, "button", "prepare")}, blocking=True
     )
+
+    assert [(c.domain, c.service) for c in service_calls] == [("homeassistant", "turn_on")]
+    assert hass.states.get(season).state == "2"  # Vorbereiten hat die Saison des Tages begonnen
+
+    with pytest.raises(ServiceValidationError) as err:  # für heute gibt es schon eine
+        await hass.services.async_call(
+            "button", "press", {"entity_id": partner_entity(hass, entry, FRANK, "button", "new_season")}, blocking=True
+        )
+
+    assert err.value.translation_key == "season_today"
+    assert hass.states.get(season).state == "2"
+
+
+async def test_the_new_season_button_works_on_a_new_day(hass: HomeAssistant) -> None:
+    entry = await _setup(hass)
+    entry.runtime_data.states[FRANK].season_start = (dt_util.now().date() - timedelta(days=1)).isoformat()
+
     await hass.services.async_call(
         "button", "press", {"entity_id": partner_entity(hass, entry, FRANK, "button", "new_season")}, blocking=True
     )
 
-    assert [(c.domain, c.service) for c in service_calls] == [("homeassistant", "turn_on")]
     assert hass.states.get(partner_entity(hass, entry, FRANK, "number", "season")).state == "2"
 
 

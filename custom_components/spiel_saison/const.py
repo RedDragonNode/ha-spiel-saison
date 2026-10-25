@@ -20,7 +20,8 @@ CONF_FILE_PATTERN = "file_pattern"  # Dateiname je Kamera (ohne Endung)
 DEFAULT_BASE_FOLDER = "Spiel_Saison"
 DEFAULT_PARTNER_PATTERN = "Spielen mit {partner} #{nr}"
 DEFAULT_SEASON_PATTERN = "Saison {saison} vom %DD,%MM,%CCYY"
-DEFAULT_FILE_PATTERN = "#{nr}.{saison}.{aufnahme}.Cam ID.{cam_nr} %DD.%MM.%CCYY"
+DEFAULT_FILE_PATTERN = "#{nr}.{saison}.{aufnahme}.Cam ID.{cam} %DD.%MM.%CCYY"
+OLD_CAM_NUMBER_PART = "Cam ID.{cam_nr}"  # bis 0.1.0 stand hier die Nummer der Kamera statt ihres Namens
 
 # --- Spielpartner (Subentry-Daten) -------------------------------------------------
 CONF_NUMBER = "number"  # Nummer des Spielpartners ("nr" in den Mustern)

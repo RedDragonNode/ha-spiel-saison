@@ -55,6 +55,14 @@ async def _stop(hass: HomeAssistant, partner: str = "Frank") -> dict:
     return result
 
 
+async def _prepare(hass: HomeAssistant, partner: str = "Frank") -> dict:
+    return await hass.services.async_call(DOMAIN, "prepare", {"partner": partner}, blocking=True, return_response=True)
+
+
+def _days_ago(days: int) -> str:
+    return (dt_util.now().date() - timedelta(days=days)).isoformat()
+
+
 def _runtime(entry):
     return entry.runtime_data
 
@@ -83,9 +91,9 @@ async def test_start_runs_the_steps_in_order_and_records(hass, stream, cams, ser
     action, path, cams_sent, session, profile = call
     assert action == "start"
     assert path == ["Spielen", "Spielen mit Frank #02", f"Saison 01 vom {dt_util.now():%d,%m,%Y}"]
-    assert [c["stem"] for c in cams_sent] == [
-        f"#02.01.01.Cam ID.01 {dt_util.now():%d.%m.%Y}",
-        f"#02.01.01.Cam ID.02 {dt_util.now():%d.%m.%Y}",
+    assert [c["stem"] for c in cams_sent] == [  # bei „Cam ID“ steht der Name der Kamera, nicht die Nummer
+        f"#02.01.01.Cam ID.Fuchs {dt_util.now():%d.%m.%Y}",
+        f"#02.01.01.Cam ID.Hase {dt_util.now():%d.%m.%Y}",
     ]
     assert [c["id"] for c in cams_sent] == ["camera.fuchs", "camera.hase"]
     assert cams_sent[0]["url"] == stream.return_value
@@ -262,11 +270,41 @@ async def test_prepare_turns_things_on_and_moves_the_cover(hass, stream, cams, s
         DOMAIN, "prepare", {"partner": "Frank"}, blocking=True, return_response=True
     )
 
-    assert result == {"partner": "Frank", "place": "Schaukel"}
+    assert result == {"partner": "Frank", "place": "Schaukel", "season": 1, "new_season": False}
     assert _summary(service_calls) == [
         ("homeassistant", "turn_on", {"entity_id": ["switch.winde"]}),
         ("cover", "set_cover_position", {"entity_id": "cover.winde", "position": 50}),
     ]
+
+
+async def test_prepare_begins_the_season_of_the_day_once(hass, stream, cams) -> None:
+    entry = await _setup(hass, [make_place("Schaukel")])
+    state = _runtime(entry).states[FRANK]
+    state.season_start = _days_ago(1)
+    season_events = async_capture_events(hass, EVENT_SEASON)
+
+    first = await _prepare(hass)
+    again = await _prepare(hass)
+
+    assert (first["season"], first["new_season"]) == (2, True)
+    assert (again["season"], again["new_season"]) == (2, False)
+    assert state.season == 2 and state.season_start == _days_ago(0)
+    assert state.seasons["1"]["start"] == _days_ago(1)
+    (event,) = season_events
+    assert event.data["season"] == 2
+    await _start(hass)
+    assert FakeRecorder.calls[0][1][2] == f"Saison 02 vom {dt_util.now():%d,%m,%Y}"
+
+
+async def test_prepare_leaves_the_season_alone_while_recording(hass, stream, cams) -> None:
+    entry = await _setup(hass, [make_place("Schaukel")])
+    await _start(hass)
+    _runtime(entry).states[FRANK].season_start = _days_ago(1)
+
+    result = await _prepare(hass)
+
+    assert (result["season"], result["new_season"]) == (1, False)
+    assert _runtime(entry).states[FRANK].count_season == 1
 
 
 async def test_prepare_needs_a_place(hass, cams) -> None:
@@ -291,9 +329,13 @@ async def test_new_season_archives_and_resets(hass, stream, cams) -> None:
     await _stop(hass)
     state = _runtime(entry).states[FRANK]
     state.seconds_season = 7200
+    state.season_start = _days_ago(1)
 
-    await hass.services.async_call(DOMAIN, "new_season", {"partner": "Frank"}, blocking=True)
+    result = await hass.services.async_call(
+        DOMAIN, "new_season", {"partner": "Frank"}, blocking=True, return_response=True
+    )
 
+    assert result == {"partner": "Frank", "season": 2, "started": True}
     assert state.season == 2 and state.count_season == 0 and state.seconds_season == 0
     assert state.count_total == 1
     assert state.seasons["1"]["recordings"] == 1 and state.seasons["1"]["seconds"] == 7200
@@ -303,6 +345,21 @@ async def test_new_season_archives_and_resets(hass, stream, cams) -> None:
     await _start(hass)
     assert FakeRecorder.calls[0][1][2].startswith("Saison 02 vom ")
     assert FakeRecorder.calls[0][3] == "Frank Saison 02 Aufnahme 01"
+
+
+async def test_only_one_season_begins_per_day(hass, stream, cams) -> None:
+    entry = await _setup(hass)
+    state = _runtime(entry).states[FRANK]  # die erste Saison beginnt mit dem Einrichten, also heute
+    season_events = async_capture_events(hass, EVENT_SEASON)
+    await _start(hass)
+    await _stop(hass)
+
+    result = await hass.services.async_call(
+        DOMAIN, "new_season", {"partner": "Frank"}, blocking=True, return_response=True
+    )
+
+    assert result == {"partner": "Frank", "season": 1, "started": False, "reason": "already_today"}
+    assert state.season == 1 and state.count_season == 1 and season_events == []
 
 
 async def test_new_season_is_refused_while_recording(hass, stream, cams) -> None:
