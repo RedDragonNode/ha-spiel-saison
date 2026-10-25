@@ -112,9 +112,9 @@
         },
         "user_cover": {
           "title": "Position der Winde",
-          "description": "Optional. Die Winde wählst du bei „Konfigurieren“ der Integration. „Saison vorbereiten“ fährt sie erst auf die Position von „Konfigurieren“ und, wenn dieser Ort gewählt ist, danach auf die Position, die du hier angibst (0 bis 100 Prozent). Lässt du das Feld leer, fährt sie nur auf die Position von „Konfigurieren“.",
+          "description": "Optional. Die Winde wählst du bei „Konfigurieren“ der Integration. „Saison vorbereiten“ fährt sie nur auf die Position von „Konfigurieren“. Die Position, die du hier angibst (0 bis 100 Prozent), fährt die Winde an, wenn du bei diesem Ort die Aufnahme startest, noch vor dem Beginn der Aufnahme. Lässt du das Feld leer, bleibt die Winde, wo sie ist.",
           "data": {
-            "cover_position": "Position der Winde bei „Saison vorbereiten“ (0 bis 100)"
+            "cover_position": "Position der Winde beim Start der Aufnahme (0 bis 100)"
           }
         },
         "user_begin": {
@@ -151,9 +151,9 @@
         },
         "reconfigure_cover": {
           "title": "Position der Winde",
-          "description": "Optional. Die Winde wählst du bei „Konfigurieren“ der Integration. „Saison vorbereiten“ fährt sie erst auf die Position von „Konfigurieren“ und, wenn dieser Ort gewählt ist, danach auf die Position, die du hier angibst (0 bis 100 Prozent). Lässt du das Feld leer, fährt sie nur auf die Position von „Konfigurieren“.",
+          "description": "Optional. Die Winde wählst du bei „Konfigurieren“ der Integration. „Saison vorbereiten“ fährt sie nur auf die Position von „Konfigurieren“. Die Position, die du hier angibst (0 bis 100 Prozent), fährt die Winde an, wenn du bei diesem Ort die Aufnahme startest, noch vor dem Beginn der Aufnahme. Lässt du das Feld leer, bleibt die Winde, wo sie ist.",
           "data": {
-            "cover_position": "Position der Winde bei „Saison vorbereiten“ (0 bis 100)"
+            "cover_position": "Position der Winde beim Start der Aufnahme (0 bis 100)"
           }
         },
         "reconfigure_begin": {
@@ -188,7 +188,7 @@
     "step": {
       "init": {
         "title": "Saison vorbereiten",
-        "description": "Gilt nur für die Taste „Saison vorbereiten“ und den gleichnamigen Dienst, für alle Spielpartner und Orte gleich, nicht für die Aufnahme. Alles ist optional. Du kannst Entities, Geräte, Bereiche oder Labels wählen, auch Szenen und Skripte. Die Taste schaltet erst die Ziele bei „Ausschalten“ aus, dann die bei „Einschalten“ ein, schaltet danach die Lichter ein und fährt zuletzt das Rollo, die Winde oder Ähnliches auf die Position. Hat der gewählte Ort eine eigene Position, fährt die Winde danach noch dorthin. Wählst du Lichter, folgt eine Seite für ihre Farbe und Helligkeit.",
+        "description": "Gilt nur für die Taste „Saison vorbereiten“ und den gleichnamigen Dienst, für alle Spielpartner und Orte gleich, nicht für die Aufnahme. Alles ist optional. Du kannst Entities, Geräte, Bereiche oder Labels wählen, auch Szenen und Skripte. Die Taste schaltet erst die Ziele bei „Ausschalten“ aus, dann die bei „Einschalten“ ein, schaltet danach die Lichter ein und fährt zuletzt das Rollo, die Winde oder Ähnliches auf die Position. Die Position, die ein Ort hat, fährt die Winde erst beim Start einer Aufnahme an, nicht hier. Wählst du Lichter, folgt eine Seite für ihre Farbe und Helligkeit.",
         "data": {
           "off": "Beim Vorbereiten ausschalten",
           "on": "Beim Vorbereiten einschalten",
@@ -320,7 +320,7 @@
   "services": {
     "start_recording": {
       "name": "Aufnahme starten",
-      "description": "Startet die Aufnahme eines Spielpartners: „Aufnahme beginnen“ des Ortes, Vorlauf, dann die Aufnahme.",
+      "description": "Startet die Aufnahme eines Spielpartners: Die Winde fährt auf die Position des Ortes (falls er eine hat), dann folgt „Aufnahme beginnen“ des Ortes, der Vorlauf und die Aufnahme.",
       "fields": {
         "partner": {
           "name": "Spielpartner",
@@ -352,7 +352,7 @@
         },
         "place": {
           "name": "Ort",
-          "description": "Name des Ortes dieses Spielpartners. Die Winde fährt nach der Position von „Konfigurieren“ noch auf die Position dieses Ortes, und der Ort füllt den Platzhalter „ort“ der Ordner-Muster. Ohne Angabe gilt der Ort, der am Gerät des Spielpartners gewählt ist."
+          "description": "Name des Ortes dieses Spielpartners, er füllt nur den Platzhalter „ort“ der Ordner-Muster. Ohne Angabe gilt der Ort, der am Gerät des Spielpartners gewählt ist."
         }
       }
     },

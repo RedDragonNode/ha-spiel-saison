@@ -65,8 +65,7 @@ DEFAULT_END_SECONDS = 10
 DEFAULT_COVER_POSITION = 50
 DEFAULT_FINISH_COVER_POSITION = 0
 DEFAULT_END_SWITCH_WAIT = 120  # Sekunden, so lange wartet „Saison beenden“ höchstens auf den Endschalter
-COVER_START_GRACE_S = 2.0  # so lange darf eine Winde brauchen, um nach dem Befehl loszufahren
-COVER_MOVE_WAIT_S = 180  # so lange wartet „Saison vorbereiten“ höchstens, bis die Winde auf der ersten Position steht
+LIGHT_COLOR_DELAY_S = 2.0  # so lange nach dem Einschalten schickt „Saison …“ die Farbe der Lichter noch einmal
 
 TARGET_FIELDS = (CONF_START_OFF, CONF_START_ON, CONF_END_OFF, CONF_END_ON)
 

@@ -95,9 +95,9 @@ def fake_recorder() -> Generator[type[FakeRecorder]]:
 
 
 @pytest.fixture(autouse=True)
-def no_winch_grace(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Die Tests warten nicht, ob eine Winde ohne Zustand noch losfährt."""
-    monkeypatch.setattr("custom_components.spiel_saison.manager.COVER_START_GRACE_S", 0)
+def no_light_delay(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Die Tests warten nicht, bis die Farbe der Lichter noch einmal geschickt wird."""
+    monkeypatch.setattr("custom_components.spiel_saison.manager.LIGHT_COLOR_DELAY_S", 0)
 
 
 @pytest.fixture

@@ -460,65 +460,78 @@ async def test_the_cover_positions_default_to_50_when_preparing_and_0_when_endin
     assert (runtime.prepare_step.cover_position, runtime.finish_step.cover_position) == (50, 0)
 
 
-async def test_prepare_moves_the_winch_first_to_the_position_of_configure_then_to_that_of_the_place(
+async def test_prepare_moves_the_winch_only_to_the_position_of_configure(hass, stream, cams, service_calls) -> None:
+    options = {"prepare": {"cover": "cover.winde", "cover_position": 50}}
+    await _setup(hass, [make_place("Schaukel", cover_position=30)], options=options)
+
+    await hass.services.async_call(DOMAIN, "prepare", {"partner": "Frank", "place": "Schaukel"}, blocking=True)
+
+    # die Position des Ortes (30) gilt erst, wenn man die Aufnahme startet
+    assert _summary(service_calls) == [("cover", "set_cover_position", {"entity_id": "cover.winde", "position": 50})]
+
+
+async def test_the_recording_start_moves_the_winch_to_the_position_of_the_place(
     hass, stream, cams, service_calls
 ) -> None:
     options = {"prepare": {"cover": "cover.winde", "cover_position": 50}}
     entry = await _setup(
         hass,
-        [
-            make_place("Schaukel", cover_position=30),
-            make_place("Bett", cover_position=0),
-            make_place("Dach"),
-            make_place("Hof", cover_position=50),
-        ],
+        [make_place("Schaukel", cover_position=30), make_place("Bett", cover_position=0), make_place("Dach")],
         options=options,
     )
-    for place in ("Schaukel", "Bett", "Dach", "Hof"):
+
+    for place, expected in (("Schaukel", [30]), ("Bett", [0]), ("Dach", [])):  # 0 ist eine Position
         service_calls.clear()
-        await hass.services.async_call(DOMAIN, "prepare", {"partner": "Frank", "place": place}, blocking=True)
+        await _start(hass, place=place)
+        await _stop(hass)
         positions = [c.data["position"] for c in service_calls if c.service == "set_cover_position"]
-        assert positions == {"Schaukel": [50, 30], "Bett": [50, 0], "Dach": [50], "Hof": [50]}[place], place
+        assert positions == expected, place
 
-    assert _runtime(entry).places["o_Dach"].cover_position is None  # keine Position ist nicht 0
+    assert _runtime(entry).places["o_Dach"].cover_position is None
 
 
-async def test_prepare_uses_the_position_of_the_place_that_is_selected(hass, stream, cams, service_calls) -> None:
+async def test_the_winch_moves_first_when_a_recording_starts(hass, stream, cams, service_calls) -> None:
+    options = {"prepare": {"cover": "cover.winde"}}
+    await _setup(hass, [make_place("Schaukel", cover_position=25, start_on=BED)], options=options)
+
+    await _start(hass)
+
+    assert _summary(service_calls) == [
+        ("cover", "set_cover_position", {"entity_id": "cover.winde", "position": 25}),
+        ("homeassistant", "turn_on", BED),
+    ]
+
+
+async def test_the_selected_place_decides_the_winch_position(hass, stream, cams, service_calls) -> None:
     options = {"prepare": {"cover": "cover.winde"}}
     await _setup(hass, [make_place("Schaukel"), make_place("Bett", cover_position=10)], options=options)
     select = er.async_get(hass).async_get_entity_id("select", DOMAIN, f"{_entry_id(hass)}_{FRANK}_place")
     await hass.services.async_call("select", "select_option", {"entity_id": select, "option": "Bett"}, blocking=True)
 
-    await _prepare(hass)
+    await _start(hass)
+
+    assert _summary(service_calls) == [("cover", "set_cover_position", {"entity_id": "cover.winde", "position": 10})]
+
+
+async def test_the_recording_start_leaves_the_winch_alone_without_a_winch(hass, stream, cams, service_calls) -> None:
+    await _setup(hass, [make_place("Schaukel", cover_position=30)])  # bei Konfigurieren ist keine Winde gewählt
+
+    await _start(hass)
+
+    assert [c for c in service_calls if c.service == "set_cover_position"] == []
+
+
+async def test_the_colour_of_a_light_is_sent_a_second_time_once_the_light_is_on(hass, cams, service_calls) -> None:
+    lights = {"light.a": {"rgb": [1, 2, 3], "brightness": 20}, "light.b": {"brightness": 70}}
+    await _setup(hass, options={"finish": {"lights": lights}})
+
+    await _end_season(hass)
 
     assert _summary(service_calls) == [
-        ("cover", "set_cover_position", {"entity_id": "cover.winde", "position": 50}),
-        ("cover", "set_cover_position", {"entity_id": "cover.winde", "position": 10}),
+        ("light", "turn_on", {"entity_id": "light.a", "brightness_pct": 20, "rgb_color": [1, 2, 3]}),
+        ("light", "turn_on", {"entity_id": "light.b", "brightness_pct": 70}),
+        ("light", "turn_on", {"entity_id": "light.a", "brightness_pct": 20, "rgb_color": [1, 2, 3]}),  # nur mit Farbe
     ]
-
-
-async def test_the_winch_waits_until_it_stands_before_it_goes_to_the_position_of_the_place(
-    hass, stream, cams, service_calls
-) -> None:
-    hass.states.async_set("cover.winde", "closed")
-    await _setup(hass, [make_place("Schaukel", cover_position=25)], options={"prepare": {"cover": "cover.winde"}})
-
-    async def record_and_drive(call: ServiceCall) -> None:  # wie die echte Winde: nach dem Befehl fährt sie
-        service_calls.append(call)
-        hass.states.async_set("cover.winde", "opening")
-
-    hass.services.async_remove("cover", "set_cover_position")
-    hass.services.async_register("cover", "set_cover_position", record_and_drive)
-
-    task = hass.async_create_background_task(_prepare(hass), "test prepare")
-    await asyncio.sleep(0.05)
-    assert [c.data["position"] for c in service_calls] == [50]  # die Winde fährt noch, die zweite Position wartet
-    assert not task.done()
-
-    hass.states.async_set("cover.winde", "open")  # sie steht
-    await task
-
-    assert [c.data["position"] for c in service_calls] == [50, 25]
 
 
 async def test_end_season_moves_the_cover_first_and_switches_the_winch_off_when_the_end_switch_is_on(
@@ -614,6 +627,7 @@ async def test_end_season_runs_the_settings_of_the_end_page(hass, cams, service_
         ("homeassistant", "turn_on", {"entity_id": ["light.zimmer"]}),
         ("light", "turn_on", {"entity_id": "light.stehlampe", "brightness_pct": 40, "rgb_color": [255, 100, 0]}),
         ("light", "turn_on", {"entity_id": "light.decke"}),  # ohne Farbe und Helligkeit: so, wie das Licht zuletzt war
+        ("light", "turn_on", {"entity_id": "light.stehlampe", "brightness_pct": 40, "rgb_color": [255, 100, 0]}),
     ]
     assert [e.data for e in events] == [{**result, "partner_id": FRANK, "nickname": "", "start": state.season_start}]
     assert state.season == 1 and state.count_season == 3  # beenden zählt nichts um
@@ -667,6 +681,7 @@ async def test_the_buttons_use_only_their_own_settings(hass, stream, cams, servi
         ("homeassistant", "turn_on"),
         ("light", "turn_on"),
         ("light", "turn_on"),
+        ("light", "turn_on"),  # die Farbe folgt noch einmal
     ]
     assert "switch.vorher" not in str(_summary(service_calls)) and "light.schaukel" not in str(_summary(service_calls))
 

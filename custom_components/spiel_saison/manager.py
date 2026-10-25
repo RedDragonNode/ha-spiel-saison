@@ -5,13 +5,13 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-from dataclasses import asdict, dataclass, field, fields, replace
+from dataclasses import asdict, dataclass, field, fields
 from datetime import date, datetime, time, timedelta
 from typing import Any
 
 from homeassistant.components.camera import async_get_stream_source
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_NAME, STATE_CLOSING, STATE_ON, STATE_OPENING
+from homeassistant.const import CONF_NAME, STATE_ON
 from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import entity_registry as er
@@ -49,8 +49,6 @@ from .const import (
     CONF_START_ON,
     CONF_TREATS,
     COUNTED_KINDS,
-    COVER_MOVE_WAIT_S,
-    COVER_START_GRACE_S,
     CTRONICS_DOMAIN,
     DEFAULT_BASE_FOLDER,
     DEFAULT_COVER_POSITION,
@@ -69,6 +67,7 @@ from .const import (
     KIND_LIKE,
     KIND_TREAT,
     LIGHT_BRIGHTNESS,
+    LIGHT_COLOR_DELAY_S,
     LIGHT_RGB,
     OPT_FINISH,
     OPT_PREPARE,
@@ -143,7 +142,6 @@ class SeasonStep:
     after_off: dict[str, Any] = field(default_factory=dict)  # erst aus, wenn der Endschalter an ist (nur „beenden“)
     end_switch: str = ""
     wait_s: int = DEFAULT_END_SWITCH_WAIT
-    then_position: int | None = None  # danach fährt die Winde noch auf die Position des Ortes
 
 
 @dataclass
@@ -593,50 +591,16 @@ class SpielSaisonManager:
             message = logic.render_pattern(text, dt_util.now(), values)
             await self._call("notify", "send_message", {"entity_id": partner.announce_entity, "message": message})
 
-    @staticmethod
-    def _with_place_position(step: SeasonStep, place: PlaceCfg | None) -> SeasonStep:
-        """Hat der gewählte Ort eine eigene Position, fährt die Winde von „Saison vorbereiten“ danach dorthin."""
-        if place is None or place.cover_position is None or not step.cover:
-            return step
-        return replace(step, then_position=place.cover_position)
-
     async def _move_cover(self, step: SeasonStep) -> None:
-        """Rollo oder Winde auf die Position von „Konfigurieren“ fahren, dann auf die des Ortes (falls er eine hat)."""
-        if not step.cover:
-            return
-        entity = {"entity_id": step.cover}
-        await self._call("cover", "set_cover_position", {**entity, "position": step.cover_position})
-        if step.then_position is not None and step.then_position != step.cover_position:
-            await self._wait_cover_stopped(step.cover)
-            await self._call("cover", "set_cover_position", {**entity, "position": step.then_position})
+        """Rollo oder Winde auf die Position von „Konfigurieren“ fahren."""
+        if step.cover:
+            await self._call("cover", "set_cover_position", {"entity_id": step.cover, "position": step.cover_position})
 
-    async def _wait_cover_stopped(self, entity_id: str) -> None:
-        """Wartet, bis die Winde steht (Zustand weder „opening“ noch „closing“), höchstens `COVER_MOVE_WAIT_S`."""
-
-        def moving() -> bool:
-            state = self.hass.states.get(entity_id)
-            return bool(state and state.state in (STATE_OPENING, STATE_CLOSING))
-
-        stopped = asyncio.Event()
-
-        @callback
-        def changed(_event: Event) -> None:
-            if not moving():
-                stopped.set()
-
-        unsub = async_track_state_change_event(self.hass, [entity_id], changed)
-        try:
-            if not moving():
-                await asyncio.sleep(COVER_START_GRACE_S)  # die Winde fährt vielleicht erst gleich los
-            if moving():
-                async with asyncio.timeout(COVER_MOVE_WAIT_S):
-                    await stopped.wait()
-        except TimeoutError:
-            _LOGGER.warning(
-                "%s fährt nach %s s noch, die nächste Position wird trotzdem angefahren", entity_id, COVER_MOVE_WAIT_S
-            )
-        finally:
-            unsub()
+    async def _winch_to_place(self, place: PlaceCfg) -> None:
+        """Beim Start einer Aufnahme fährt die Winde (die von „Saison vorbereiten“) auf die Position des Ortes."""
+        cover = self.prepare_step.cover
+        if cover and place.cover_position is not None:
+            await self._call("cover", "set_cover_position", {"entity_id": cover, "position": place.cover_position})
 
     async def _wait_until_on(self, entity_id: str, seconds: float) -> bool:
         """Wartet höchstens `seconds`, bis die Entity an ist. False, wenn sie es bis dahin nicht wurde."""
@@ -659,6 +623,29 @@ class SpielSaisonManager:
             unsub()
         return True
 
+    @staticmethod
+    def _light_data(entity_id: str, look: dict[str, Any]) -> dict[str, Any]:
+        data: dict[str, Any] = {"entity_id": entity_id}
+        if LIGHT_BRIGHTNESS in look:
+            data["brightness_pct"] = int(look[LIGHT_BRIGHTNESS])
+        if LIGHT_RGB in look:
+            data["rgb_color"] = [int(part) for part in look[LIGHT_RGB]]
+        return data
+
+    async def _lights_on(self, lights: dict[str, dict[str, Any]]) -> None:
+        """Lichter mit ihrer Farbe und Helligkeit einschalten.
+
+        Manche Lampen (zum Beispiel Matter-Lampen) übernehmen die Farbe nicht, wenn sie mit demselben Befehl angehen,
+        und leuchten in ihrer letzten Farbe. Darum folgt die Farbe nach kurzer Zeit noch einmal, wenn die Lampe an ist.
+        """
+        for entity_id, look in lights.items():
+            await self._call("light", "turn_on", self._light_data(entity_id, look))
+        coloured = {entity_id: look for entity_id, look in lights.items() if LIGHT_RGB in look}
+        if coloured:
+            await asyncio.sleep(LIGHT_COLOR_DELAY_S)
+            for entity_id, look in coloured.items():
+                await self._call("light", "turn_on", self._light_data(entity_id, look))
+
     async def _stage_season(self, p: PartnerCfg, step: SeasonStep, *, cover_first: bool = False) -> None:
         """„Saison vorbereiten“ oder „Saison beenden“: ausschalten, einschalten, Lichter mit Farbe, Rollo oder Winde.
 
@@ -670,13 +657,7 @@ class SpielSaisonManager:
             await self._move_cover(step)
         await self._turn("turn_off", step.off)
         await self._turn("turn_on", step.on)
-        for entity_id, look in step.lights.items():
-            data: dict[str, Any] = {"entity_id": entity_id}
-            if LIGHT_BRIGHTNESS in look:
-                data["brightness_pct"] = int(look[LIGHT_BRIGHTNESS])
-            if LIGHT_RGB in look:
-                data["rgb_color"] = [int(part) for part in look[LIGHT_RGB]]
-            await self._call("light", "turn_on", data)
+        await self._lights_on(step.lights)
         if not cover_first:
             await self._move_cover(step)
         if not step.after_off:
@@ -694,6 +675,7 @@ class SpielSaisonManager:
         await self._turn("turn_off", step.after_off)
 
     async def _stage_start(self, partner: PartnerCfg, place: PlaceCfg, cams: list[str]) -> None:
+        await self._winch_to_place(place)
         by_preset: dict[int, list[str]] = {}  # Kameras mit derselben Position in einem Aufruf
         for eid in cams:
             if (number := place.cam_presets.get(eid)) and is_ctronics(self.hass, eid):
@@ -715,15 +697,16 @@ class SpielSaisonManager:
     async def async_prepare(self, ref: str, place_ref: str | None = None) -> dict[str, Any]:
         """Neue Saison beginnen (einmal pro Tag), ihren Ordner anlegen und „Saison vorbereiten“ ausführen.
 
-        Der Ort (der angegebene, sonst der gewählte) füllt den Platzhalter `ort` der Ordner-Muster, und seine Position
-        ersetzt die der Winde. Ein Spielpartner ohne Ort kann die Saison trotzdem vorbereiten.
+        Der Ort (der angegebene, sonst der gewählte) füllt nur den Platzhalter `ort` der Ordner-Muster. Die Winde fährt
+        auf die Position von „Konfigurieren“, die Position des Ortes gilt erst beim Start einer Aufnahme.
+        Ein Spielpartner ohne Ort kann die Saison trotzdem vorbereiten.
         """
         p = self.partner(ref)
         place = self.place(p.subentry_id, place_ref)
         new_season = self.phase(p.subentry_id) == PHASE_IDLE and await self._begin_season(p)
         folder = self._season_folder(p, place, dt_util.now())
         created = await self._ensure_folder(p, folder)
-        await self._stage_season(p, self._with_place_position(self.prepare_step, place))
+        await self._stage_season(p, self.prepare_step)
         if created is not None:  # sonst bleibt die Meldung zum Saison-Ordner stehen
             self._set_message(f"{p.name}: prepared")
         self.notify()
