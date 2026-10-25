@@ -44,14 +44,15 @@ CONF_PARTNER = "partner"  # Subentry-ID des Spielpartners, zu dem der Ort gehör
 CONF_CAMS = "cams"  # Kamera-Entities (camera.*) des Ortes
 CONF_CAM_PRESETS = "cam_presets"  # Kamera-Entity -> PTZ-Position der Ctronics-Kamera (fehlt = nicht bewegen)
 CONF_PTZ_PRESET = "ptz_preset"  # bis 0.1.x: eine PTZ-Position für alle Kameras (nur noch für die Umstellung)
-# bis 0.6.x standen „Saison vorbereiten“ und „Saison beenden“ beim Ort (nur noch für die Umstellung auf 1.5)
-CONF_PREPARE_ON = "prepare_on"
-CONF_COVER = "cover"
+# Rollo oder Winde des Ortes: ersetzt für diesen Ort die Einstellung unter „Konfigurieren“
+CONF_COVER = "cover"  # bei „Saison vorbereiten“
 CONF_COVER_POSITION = "cover_position"
+CONF_FINISH_COVER = "finish_cover"  # bei „Saison beenden“
+CONF_FINISH_COVER_POSITION = "finish_cover_position"
+# bis 0.6.x standen auch die Ziele der beiden Tasten beim Ort (nur noch für die Umstellung auf 1.5)
+CONF_PREPARE_ON = "prepare_on"
 CONF_FINISH_OFF = "finish_off"
 CONF_FINISH_ON = "finish_on"
-CONF_FINISH_COVER = "finish_cover"
-CONF_FINISH_COVER_POSITION = "finish_cover_position"
 CONF_START_OFF = "start_off"
 CONF_START_ON = "start_on"
 CONF_END_OFF = "end_off"
@@ -63,6 +64,7 @@ DEFAULT_LEAD_SECONDS = 30
 DEFAULT_END_SECONDS = 10
 DEFAULT_COVER_POSITION = 50
 DEFAULT_FINISH_COVER_POSITION = 0
+DEFAULT_END_SWITCH_WAIT = 120  # Sekunden, so lange wartet „Saison beenden“ höchstens auf den Endschalter
 
 TARGET_FIELDS = (CONF_START_OFF, CONF_START_ON, CONF_END_OFF, CONF_END_ON)
 
@@ -74,6 +76,9 @@ STEP_ON = "on"  # Ziele, die eingeschaltet werden
 STEP_LIGHTS = "lights"  # Licht-Entity -> {rgb: [r, g, b], brightness: 1-100}, wird mit diesen Werten eingeschaltet
 STEP_COVER = "cover"  # Rollo, Winde oder Ähnliches, das auf eine Position fährt
 STEP_COVER_POSITION = "cover_position"
+STEP_AFTER_OFF = "after_off"  # Ziele, die erst ausgeschaltet werden, wenn der Endschalter an ist (nur „Saison beenden“)
+STEP_END_SWITCH = "end_switch"  # Endschalter, zum Beispiel „Endschalter oben“ einer Winde
+STEP_WAIT = "wait_seconds"  # so lange wartet die Taste höchstens auf den Endschalter
 LIGHT_RGB = "rgb"
 LIGHT_BRIGHTNESS = "brightness"
 

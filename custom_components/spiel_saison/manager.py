@@ -5,20 +5,20 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-from dataclasses import asdict, dataclass, field, fields
+from dataclasses import asdict, dataclass, field, fields, replace
 from datetime import date, datetime, time, timedelta
 from typing import Any
 
 from homeassistant.components.camera import async_get_stream_source
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_NAME
+from homeassistant.const import CONF_NAME, STATE_ON
 from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_send
-from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.event import async_track_state_change_event, async_track_time_interval
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
@@ -31,10 +31,14 @@ from .const import (
     CONF_BASE_FOLDER,
     CONF_CAM_PRESETS,
     CONF_CAMS,
+    CONF_COVER,
+    CONF_COVER_POSITION,
     CONF_END_OFF,
     CONF_END_ON,
     CONF_END_SECONDS,
     CONF_FILE_PATTERN,
+    CONF_FINISH_COVER,
+    CONF_FINISH_COVER_POSITION,
     CONF_LEAD_SECONDS,
     CONF_LIKES,
     CONF_NICKNAME,
@@ -52,6 +56,7 @@ from .const import (
     DEFAULT_BASE_FOLDER,
     DEFAULT_COVER_POSITION,
     DEFAULT_END_SECONDS,
+    DEFAULT_END_SWITCH_WAIT,
     DEFAULT_FILE_PATTERN,
     DEFAULT_FINISH_COVER_POSITION,
     DEFAULT_LEAD_SECONDS,
@@ -73,11 +78,14 @@ from .const import (
     PHASE_STARTING,
     PHASE_STOPPING,
     POLL_SECONDS,
+    STEP_AFTER_OFF,
     STEP_COVER,
     STEP_COVER_POSITION,
+    STEP_END_SWITCH,
     STEP_LIGHTS,
     STEP_OFF,
     STEP_ON,
+    STEP_WAIT,
     STORAGE_VERSION,
     SUBENTRY_PARTNER,
     SUBENTRY_PLACE,
@@ -119,6 +127,11 @@ class PlaceCfg:
     start_on: dict[str, Any] = field(default_factory=dict)
     end_off: dict[str, Any] = field(default_factory=dict)
     end_on: dict[str, Any] = field(default_factory=dict)
+    # Rollo oder Winde dieses Ortes bei „Saison vorbereiten“ und „Saison beenden“, sie ersetzen die von „Konfigurieren“
+    cover: str = ""
+    cover_position: int = DEFAULT_COVER_POSITION
+    finish_cover: str = ""
+    finish_cover_position: int = DEFAULT_FINISH_COVER_POSITION
     lead_s: int = DEFAULT_LEAD_SECONDS
     end_s: int = DEFAULT_END_SECONDS
 
@@ -132,6 +145,9 @@ class SeasonStep:
     lights: dict[str, dict[str, Any]] = field(default_factory=dict)  # Licht -> rgb und brightness, beides optional
     cover: str = ""
     cover_position: int = DEFAULT_COVER_POSITION
+    after_off: dict[str, Any] = field(default_factory=dict)  # erst aus, wenn der Endschalter an ist (nur „beenden“)
+    end_switch: str = ""
+    wait_s: int = DEFAULT_END_SWITCH_WAIT
 
 
 @dataclass
@@ -169,6 +185,9 @@ def _season_step(raw: Any, default_position: int) -> SeasonStep:
         },
         cover=raw.get(STEP_COVER) or "",
         cover_position=int(raw.get(STEP_COVER_POSITION, default_position)),
+        after_off=_target(raw.get(STEP_AFTER_OFF)),
+        end_switch=raw.get(STEP_END_SWITCH) or "",
+        wait_s=int(raw.get(STEP_WAIT, DEFAULT_END_SWITCH_WAIT)),
     )
 
 
@@ -267,6 +286,10 @@ class SpielSaisonManager:
                 start_on=_target(d.get(CONF_START_ON)),
                 end_off=_target(d.get(CONF_END_OFF)),
                 end_on=_target(d.get(CONF_END_ON)),
+                cover=d.get(CONF_COVER) or "",
+                cover_position=int(d.get(CONF_COVER_POSITION, DEFAULT_COVER_POSITION)),
+                finish_cover=d.get(CONF_FINISH_COVER) or "",
+                finish_cover_position=int(d.get(CONF_FINISH_COVER_POSITION, DEFAULT_FINISH_COVER_POSITION)),
                 lead_s=int(d.get(CONF_LEAD_SECONDS, DEFAULT_LEAD_SECONDS)),
                 end_s=int(d.get(CONF_END_SECONDS, DEFAULT_END_SECONDS)),
             )
@@ -577,8 +600,50 @@ class SpielSaisonManager:
             message = logic.render_pattern(text, dt_util.now(), values)
             await self._call("notify", "send_message", {"entity_id": partner.announce_entity, "message": message})
 
-    async def _stage_season(self, step: SeasonStep) -> None:
-        """„Saison vorbereiten“ oder „Saison beenden“: ausschalten, einschalten, Lichter mit Farbe, Rollo oder Winde."""
+    @staticmethod
+    def _with_place_cover(step: SeasonStep, place: PlaceCfg | None, *, finish: bool) -> SeasonStep:
+        """Hat der Ort ein eigenes Rollo oder eine eigene Winde, gilt sie statt der unter Konfigurieren."""
+        cover = (place.finish_cover if finish else place.cover) if place else ""
+        if not cover or place is None:
+            return step
+        return replace(
+            step, cover=cover, cover_position=place.finish_cover_position if finish else place.cover_position
+        )
+
+    async def _move_cover(self, step: SeasonStep) -> None:
+        if step.cover:
+            await self._call("cover", "set_cover_position", {"entity_id": step.cover, "position": step.cover_position})
+
+    async def _wait_until_on(self, entity_id: str, seconds: float) -> bool:
+        """Wartet höchstens `seconds`, bis die Entity an ist. False, wenn sie es bis dahin nicht wurde."""
+        if (state := self.hass.states.get(entity_id)) and state.state == STATE_ON:
+            return True
+        reached = asyncio.Event()
+
+        @callback
+        def changed(event: Event) -> None:
+            if (new := event.data["new_state"]) and new.state == STATE_ON:
+                reached.set()
+
+        unsub = async_track_state_change_event(self.hass, [entity_id], changed)
+        try:
+            async with asyncio.timeout(seconds):
+                await reached.wait()
+        except TimeoutError:
+            return False
+        finally:
+            unsub()
+        return True
+
+    async def _stage_season(self, p: PartnerCfg, step: SeasonStep, *, cover_first: bool = False) -> None:
+        """„Saison vorbereiten“ oder „Saison beenden“: ausschalten, einschalten, Lichter mit Farbe, Rollo oder Winde.
+
+        Beim Beenden fährt das Rollo oder die Winde zuerst (sie braucht dafür noch Strom). Danach wartet die Taste auf
+        den Endschalter und schaltet erst dann die Ziele „ausschalten, sobald der Endschalter an ist“ aus. Kommt der
+        Endschalter nicht rechtzeitig, bleiben sie an und der Aufruf meldet einen Fehler.
+        """
+        if cover_first:
+            await self._move_cover(step)
         await self._turn("turn_off", step.off)
         await self._turn("turn_on", step.on)
         for entity_id, look in step.lights.items():
@@ -588,8 +653,21 @@ class SpielSaisonManager:
             if LIGHT_RGB in look:
                 data["rgb_color"] = [int(part) for part in look[LIGHT_RGB]]
             await self._call("light", "turn_on", data)
-        if step.cover:
-            await self._call("cover", "set_cover_position", {"entity_id": step.cover, "position": step.cover_position})
+        if not cover_first:
+            await self._move_cover(step)
+        if not step.after_off:
+            return
+        if step.end_switch and not await self._wait_until_on(step.end_switch, step.wait_s):
+            self._set_message(
+                f"{p.name}: {step.end_switch} not on after {step.wait_s} s, not switched off", failed=True
+            )
+            self.notify()
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="end_switch_timeout",
+                translation_placeholders={"partner": p.name, "details": f"{step.end_switch}, {step.wait_s} s"},
+            )
+        await self._turn("turn_off", step.after_off)
 
     async def _stage_start(self, partner: PartnerCfg, place: PlaceCfg, cams: list[str]) -> None:
         by_preset: dict[int, list[str]] = {}  # Kameras mit derselben Position in einem Aufruf
@@ -621,7 +699,7 @@ class SpielSaisonManager:
         new_season = self.phase(p.subentry_id) == PHASE_IDLE and await self._begin_season(p)
         folder = self._season_folder(p, place, dt_util.now())
         created = await self._ensure_folder(p, folder)
-        await self._stage_season(self.prepare_step)
+        await self._stage_season(p, self._with_place_cover(self.prepare_step, place, finish=False))
         if created is not None:  # sonst bleibt die Meldung zum Saison-Ordner stehen
             self._set_message(f"{p.name}: prepared")
         self.notify()
@@ -634,9 +712,13 @@ class SpielSaisonManager:
             "folder_created": created,
         }
 
-    async def async_end_season(self, ref: str) -> dict[str, Any]:
-        """Die Saison des Spielpartners beenden: „Saison beenden“ ausführen, nur ohne laufende Aufnahme."""
+    async def async_end_season(self, ref: str, place_ref: str | None = None) -> dict[str, Any]:
+        """Die Saison des Spielpartners beenden: „Saison beenden“ ausführen, nur ohne laufende Aufnahme.
+
+        Nur das Rollo oder die Winde kann der Ort (der angegebene, sonst der gewählte) ersetzen. Ohne Ort geht es auch.
+        """
         p = self.partner(ref)
+        place = self.place(p.subentry_id, place_ref)
         if self.phase(p.subentry_id) != PHASE_IDLE:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
@@ -644,9 +726,10 @@ class SpielSaisonManager:
                 translation_placeholders={"partner": p.name},
             )
         st = self.states[p.subentry_id]
-        await self._stage_season(self.finish_step)
+        await self._stage_season(p, self._with_place_cover(self.finish_step, place, finish=True), cover_first=True)
         result = {
             "partner": p.name,
+            "place": place.name if place else "",
             "season": st.season,
             "recordings": st.count_season,
             "seconds": round(st.seconds_season),

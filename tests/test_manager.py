@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import timedelta
 
 import pytest
 from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import async_capture_events, async_fire_time_changed
@@ -454,6 +455,114 @@ async def test_the_cover_positions_default_to_50_when_preparing_and_0_when_endin
     assert (runtime.prepare_step.cover_position, runtime.finish_step.cover_position) == (50, 0)
 
 
+async def test_prepare_uses_the_cover_of_the_place_instead_of_the_one_under_configure(
+    hass, stream, cams, service_calls
+) -> None:
+    options = {"prepare": {"cover": "cover.winde", "cover_position": 50}}
+    await _setup(
+        hass,
+        [make_place("Schaukel", cover="cover.schaukel", cover_position=30), make_place("Bett")],
+        options=options,
+    )
+
+    await hass.services.async_call(DOMAIN, "prepare", {"partner": "Frank", "place": "Schaukel"}, blocking=True)
+    await hass.services.async_call(DOMAIN, "prepare", {"partner": "Frank", "place": "Bett"}, blocking=True)
+
+    assert _summary(service_calls) == [
+        ("cover", "set_cover_position", {"entity_id": "cover.schaukel", "position": 30}),
+        ("cover", "set_cover_position", {"entity_id": "cover.winde", "position": 50}),  # Bett hat keine eigene
+    ]
+
+
+async def test_end_season_uses_the_end_cover_of_the_place(hass, cams, service_calls) -> None:
+    options = {"finish": {"cover": "cover.winde"}}
+    await _setup(
+        hass, [make_place("Schaukel", finish_cover="cover.schaukel", finish_cover_position=10)], options=options
+    )
+
+    result = await _end_season(hass)
+
+    assert result["place"] == "Schaukel"
+    assert _summary(service_calls) == [("cover", "set_cover_position", {"entity_id": "cover.schaukel", "position": 10})]
+
+
+async def test_end_season_moves_the_cover_first_and_switches_the_winch_off_when_the_end_switch_is_on(
+    hass, cams, service_calls
+) -> None:
+    hass.states.async_set("binary_sensor.oben", "on")  # die Winde steht schon oben
+    options = {
+        "finish": {
+            "off": BED,
+            "cover": "cover.winde",
+            "after_off": {"entity_id": ["switch.winde"]},
+            "end_switch": "binary_sensor.oben",
+        }
+    }
+    await _setup(hass, options=options)
+
+    await _end_season(hass)
+
+    assert _summary(service_calls) == [
+        ("cover", "set_cover_position", {"entity_id": "cover.winde", "position": 0}),  # zuerst die Winde fahren
+        ("homeassistant", "turn_off", BED),
+        ("homeassistant", "turn_off", {"entity_id": ["switch.winde"]}),  # zuletzt der Strom der Winde
+    ]
+
+
+async def test_the_winch_stays_on_until_the_end_switch_comes_on(hass, cams, service_calls) -> None:
+    hass.states.async_set("binary_sensor.oben", "off")
+    options = {
+        "finish": {
+            "cover": "cover.winde",
+            "after_off": {"entity_id": ["switch.winde"]},
+            "end_switch": "binary_sensor.oben",
+            "wait_seconds": 30,
+        }
+    }
+    await _setup(hass, options=options)
+
+    task = hass.async_create_background_task(_end_season(hass), "test end season")
+    await asyncio.sleep(0.05)
+    assert [(c.domain, c.service) for c in service_calls] == [("cover", "set_cover_position")]  # noch nicht aus
+    assert not task.done()
+
+    hass.states.async_set("binary_sensor.oben", "on")
+    result = await task
+
+    assert result["partner"] == "Frank"
+    assert _summary(service_calls)[-1] == ("homeassistant", "turn_off", {"entity_id": ["switch.winde"]})
+
+
+async def test_the_winch_is_not_switched_off_when_the_end_switch_never_comes(hass, cams, service_calls) -> None:
+    hass.states.async_set("binary_sensor.oben", "off")
+    options = {
+        "finish": {
+            "after_off": {"entity_id": ["switch.winde"]},
+            "end_switch": "binary_sensor.oben",
+            "wait_seconds": 0,
+        }
+    }
+    entry = await _setup(hass, options=options)
+    events = async_capture_events(hass, EVENT_SEASON_ENDED)
+
+    with pytest.raises(HomeAssistantError) as err:
+        await _end_season(hass)
+    await hass.async_block_till_done()
+
+    assert err.value.translation_key == "end_switch_timeout"
+    assert service_calls == []  # die Winde bleibt an
+    assert events == []
+    assert _runtime(entry).status == "error" and "binary_sensor.oben" in _runtime(entry).message
+
+
+async def test_end_season_waits_without_an_end_switch_for_nothing(hass, cams, service_calls) -> None:
+    await _setup(hass, options={"finish": {"after_off": {"entity_id": ["switch.winde"]}}})
+
+    await _end_season(hass)
+
+    assert _summary(service_calls) == [("homeassistant", "turn_off", {"entity_id": ["switch.winde"]})]
+
+
 async def test_end_season_runs_the_settings_of_the_end_page(hass, cams, service_calls) -> None:
     entry = await _setup(hass, options={"finish": FINISH})
     events = async_capture_events(hass, EVENT_SEASON_ENDED)
@@ -463,13 +572,13 @@ async def test_end_season_runs_the_settings_of_the_end_page(hass, cams, service_
     result = await _end_season(hass)
     await hass.async_block_till_done()
 
-    assert result == {"partner": "Frank", "season": 1, "recordings": 3, "seconds": 200}
+    assert result == {"partner": "Frank", "place": "Spielzimmer", "season": 1, "recordings": 3, "seconds": 200}
     assert _summary(service_calls) == [
+        ("cover", "set_cover_position", {"entity_id": "cover.rollo", "position": 100}),  # beim Beenden zuerst
         ("homeassistant", "turn_off", {"entity_id": ["switch.winde"]}),
         ("homeassistant", "turn_on", {"entity_id": ["light.zimmer"]}),
         ("light", "turn_on", {"entity_id": "light.stehlampe", "brightness_pct": 40, "rgb_color": [255, 100, 0]}),
         ("light", "turn_on", {"entity_id": "light.decke"}),  # ohne Farbe und Helligkeit: so, wie das Licht zuletzt war
-        ("cover", "set_cover_position", {"entity_id": "cover.rollo", "position": 100}),
     ]
     assert [e.data for e in events] == [{**result, "partner_id": FRANK, "nickname": "", "start": state.season_start}]
     assert state.season == 1 and state.count_season == 3  # beenden zählt nichts um
@@ -490,7 +599,7 @@ async def test_end_season_works_without_a_place(hass, cams, service_calls) -> No
 
     result = await _end_season(hass)
 
-    assert result["partner"] == "Frank"
+    assert (result["partner"], result["place"]) == ("Frank", "")
     assert _summary(service_calls) == [("homeassistant", "turn_off", BED)]
 
 
@@ -518,11 +627,11 @@ async def test_the_buttons_use_only_their_own_settings(hass, stream, cams, servi
     service_calls.clear()
     await _end_season(hass)
     assert [(c.domain, c.service) for c in service_calls] == [
+        ("cover", "set_cover_position"),
         ("homeassistant", "turn_off"),
         ("homeassistant", "turn_on"),
         ("light", "turn_on"),
         ("light", "turn_on"),
-        ("cover", "set_cover_position"),
     ]
     assert "switch.vorher" not in str(_summary(service_calls)) and "light.schaukel" not in str(_summary(service_calls))
 

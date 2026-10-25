@@ -167,8 +167,8 @@ async def test_the_end_season_button(hass: HomeAssistant, service_calls) -> None
 
     # nur die Einstellungen von „Saison beenden“, nichts von „Saison vorbereiten“
     assert [(c.domain, c.service, dict(c.data)) for c in service_calls] == [
-        ("homeassistant", "turn_off", {"entity_id": ["switch.winde"]}),
         ("cover", "set_cover_position", {"entity_id": "cover.rollo", "position": 0}),
+        ("homeassistant", "turn_off", {"entity_id": ["switch.winde"]}),
     ]
     season = partner_entity(hass, entry, FRANK, "number", "season")
     assert hass.states.get(season).state == "1"  # beenden zählt die Saison nicht weiter

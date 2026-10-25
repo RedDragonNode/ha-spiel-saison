@@ -41,3 +41,7 @@ end_season:
       example: Frank
       selector:
         text:
+    place:
+      example: Schaukel
+      selector:
+        text:
