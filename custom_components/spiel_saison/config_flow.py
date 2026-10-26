@@ -69,6 +69,7 @@ from .const import (
     STEP_LIGHTS,
     STEP_OFF,
     STEP_ON,
+    STEP_UP_SWITCH,
     STEP_WAIT,
     SUBENTRY_PARTNER,
     SUBENTRY_PLACE,
@@ -543,6 +544,8 @@ class SeasonOptionsFlow(OptionsFlow):
                 data[STEP_COVER] = user_input[STEP_COVER]
                 data[STEP_COVER_POSITION] = int(user_input.get(STEP_COVER_POSITION, default_position))
             if not prepare:  # nur „Saison beenden“ wartet auf einen Endschalter
+                if user_input.get(STEP_UP_SWITCH):
+                    data[STEP_UP_SWITCH] = user_input[STEP_UP_SWITCH]
                 if user_input.get(STEP_AFTER_OFF):
                     data[STEP_AFTER_OFF] = user_input[STEP_AFTER_OFF]
                 if user_input.get(STEP_END_SWITCH):
@@ -565,6 +568,9 @@ class SeasonOptionsFlow(OptionsFlow):
         }
         suggested = {STEP_COVER_POSITION: default_position, **saved, STEP_LIGHTS: list(saved.get(STEP_LIGHTS) or {})}
         if not prepare:
+            fields[vol.Optional(STEP_UP_SWITCH)] = selector.EntitySelector(
+                selector.EntitySelectorConfig(domain="switch")
+            )
             fields[vol.Optional(STEP_AFTER_OFF)] = _TARGET
             fields[vol.Optional(STEP_END_SWITCH)] = selector.EntitySelector(
                 selector.EntitySelectorConfig(domain=["binary_sensor", "switch", "input_boolean"])

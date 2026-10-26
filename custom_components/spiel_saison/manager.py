@@ -11,7 +11,7 @@ from typing import Any
 
 from homeassistant.components.camera import async_get_stream_source
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_NAME, STATE_ON
+from homeassistant.const import CONF_NAME, STATE_OFF, STATE_ON
 from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import entity_registry as er
@@ -61,6 +61,7 @@ from .const import (
     DEFAULT_PARTNER_PATTERN,
     DEFAULT_SEASON_PATTERN,
     DOMAIN,
+    END_SWITCH_GRACE_S,
     EVENT_SEASON,
     EVENT_SEASON_ENDED,
     EVENT_STARTED,
@@ -86,6 +87,7 @@ from .const import (
     STEP_LIGHTS,
     STEP_OFF,
     STEP_ON,
+    STEP_UP_SWITCH,
     STEP_WAIT,
     STORAGE_VERSION,
     SUBENTRY_PARTNER,
@@ -145,6 +147,7 @@ class SeasonStep:
     cover_position: int = DEFAULT_COVER_POSITION
     after_off: dict[str, Any] = field(default_factory=dict)  # erst aus, wenn der Endschalter an ist (nur „beenden“)
     end_switch: str = ""
+    up_switch: str = ""  # Schalter „hoch“: fährt die Winde bis zum Endschalter, statt über die Position
     wait_s: int = DEFAULT_END_SWITCH_WAIT
 
 
@@ -185,6 +188,7 @@ def _season_step(raw: Any, default_position: int) -> SeasonStep:
         cover_position=int(raw.get(STEP_COVER_POSITION, default_position)),
         after_off=_target(raw.get(STEP_AFTER_OFF)),
         end_switch=raw.get(STEP_END_SWITCH) or "",
+        up_switch=raw.get(STEP_UP_SWITCH) or "",
         wait_s=int(raw.get(STEP_WAIT, DEFAULT_END_SWITCH_WAIT)),
     )
 
@@ -606,6 +610,63 @@ class SpielSaisonManager:
         if cover and place.cover_position is not None:
             await self._call("cover", "set_cover_position", {"entity_id": cover, "position": place.cover_position})
 
+    def _is_on(self, entity_id: str) -> bool:
+        state = self.hass.states.get(entity_id)
+        return state is not None and state.state == STATE_ON
+
+    def _end_switch_error(self, p: PartnerCfg, step: SeasonStep) -> HomeAssistantError:
+        """Fehler, wenn der Endschalter nicht rechtzeitig an war: die Ziele für „sobald er an ist“ bleiben an."""
+        self._set_message(f"{p.name}: {step.end_switch} not on after {step.wait_s} s, not switched off", failed=True)
+        self.notify()
+        return HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="end_switch_timeout",
+            translation_placeholders={"partner": p.name, "details": f"{step.end_switch}, {step.wait_s} s"},
+        )
+
+    async def _drive_up(self, p: PartnerCfg, step: SeasonStep) -> None:
+        """Die Winde mit dem Schalter „hoch“ bis zum Endschalter fahren, wie das Skript beim Kalibrieren.
+
+        Fährt die Winde nur nach der Zeitschätzung auf Position 0, bleibt sie oft knapp vor dem Endschalter stehen und
+        der Endschalter geht nie an. Der Schalter „hoch“ läuft, bis der Endschalter an ist oder er sich selbst
+        ausschaltet. Steht die Winde schon oben (Endschalter an), passiert nichts.
+        """
+        if self._is_on(step.end_switch):
+            return
+        up = {"entity_id": [step.up_switch]}
+        await self._turn("turn_on", up)
+        try:
+            await self._wait_end_or_stop(step.end_switch, step.up_switch, step.wait_s)
+        finally:
+            await self._turn("turn_off", up)
+        if not self._is_on(step.end_switch) and not await self._wait_until_on(step.end_switch, END_SWITCH_GRACE_S):
+            raise self._end_switch_error(p, step)
+
+    async def _wait_end_or_stop(self, end_switch: str, up_switch: str, seconds: float) -> None:
+        """Wartet höchstens `seconds`, bis der Endschalter an ist oder der Schalter „hoch“ ausgeht."""
+        if self._is_on(end_switch):
+            return
+        finished = asyncio.Event()
+
+        @callback
+        def changed(event: Event) -> None:
+            new = event.data["new_state"]
+            if new is None:
+                return
+            if (event.data["entity_id"] == end_switch and new.state == STATE_ON) or (
+                event.data["entity_id"] == up_switch and new.state == STATE_OFF
+            ):
+                finished.set()
+
+        unsub = async_track_state_change_event(self.hass, [end_switch, up_switch], changed)
+        try:
+            async with asyncio.timeout(seconds):
+                await finished.wait()
+        except TimeoutError:
+            pass  # der Aufrufer prüft den Endschalter
+        finally:
+            unsub()
+
     async def _wait_until_on(self, entity_id: str, seconds: float) -> bool:
         """Wartet höchstens `seconds`, bis die Entity an ist. False, wenn sie es bis dahin nicht wurde."""
         if (state := self.hass.states.get(entity_id)) and state.state == STATE_ON:
@@ -665,7 +726,10 @@ class SpielSaisonManager:
         Endschalter nicht rechtzeitig, bleiben sie an und der Aufruf meldet einen Fehler.
         """
         if cover_first:
-            await self._move_cover(step)
+            if step.up_switch and step.end_switch:
+                await self._drive_up(p, step)
+            else:
+                await self._move_cover(step)
         await self._turn("turn_off", step.off)
         await self._turn("turn_on", step.on)
         await self._lights_on(step.lights)
@@ -674,15 +738,7 @@ class SpielSaisonManager:
         if not step.after_off:
             return
         if step.end_switch and not await self._wait_until_on(step.end_switch, step.wait_s):
-            self._set_message(
-                f"{p.name}: {step.end_switch} not on after {step.wait_s} s, not switched off", failed=True
-            )
-            self.notify()
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key="end_switch_timeout",
-                translation_placeholders={"partner": p.name, "details": f"{step.end_switch}, {step.wait_s} s"},
-            )
+            raise self._end_switch_error(p, step)
         await self._turn("turn_off", step.after_off)
 
     async def _stage_start(self, partner: PartnerCfg, place: PlaceCfg, cams: list[str]) -> None:

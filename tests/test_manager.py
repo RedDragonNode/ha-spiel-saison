@@ -662,6 +662,88 @@ async def test_white_goes_to_the_lamp_as_a_colour_temperature_and_a_colour_as_a_
     assert blue == {"entity_id": "light.nur_farbe", "rgb_color": [0, 0, 255]}
 
 
+DRIVE_UP = {
+    "cover": "cover.winde",
+    "up_switch": "switch.hoch",
+    "end_switch": "binary_sensor.oben",
+    "after_off": {"entity_id": ["switch.strom"]},
+    "wait_seconds": 30,
+}
+
+
+async def test_the_winch_is_driven_up_with_the_up_switch_until_the_end_switch_is_on(hass, cams, service_calls) -> None:
+    hass.states.async_set("binary_sensor.oben", "off")
+    await _setup(hass, options={"finish": DRIVE_UP})
+
+    task = hass.async_create_background_task(_end_season(hass), "test end season")
+    await asyncio.sleep(0.05)
+    assert _summary(service_calls) == [("homeassistant", "turn_on", {"entity_id": ["switch.hoch"]})]  # keine Position
+    assert not task.done()
+
+    hass.states.async_set("binary_sensor.oben", "on")  # die Winde hat den Endschalter erreicht
+    await task
+
+    assert _summary(service_calls) == [
+        ("homeassistant", "turn_on", {"entity_id": ["switch.hoch"]}),
+        ("homeassistant", "turn_off", {"entity_id": ["switch.hoch"]}),  # danach der Schalter wieder aus
+        ("homeassistant", "turn_off", {"entity_id": ["switch.strom"]}),  # und erst dann der Strom der Winde
+    ]
+
+
+async def test_the_winch_stands_still_when_it_is_already_at_the_end_switch(hass, cams, service_calls) -> None:
+    hass.states.async_set("binary_sensor.oben", "on")
+    await _setup(hass, options={"finish": DRIVE_UP})
+
+    await _end_season(hass)
+
+    assert _summary(service_calls) == [("homeassistant", "turn_off", {"entity_id": ["switch.strom"]})]
+
+
+async def test_nothing_is_switched_off_when_the_up_switch_stops_before_the_end_switch(
+    hass, cams, service_calls
+) -> None:
+    hass.states.async_set("binary_sensor.oben", "off")
+    hass.states.async_set("switch.hoch", "off")
+    entry = await _setup(hass, options={"finish": DRIVE_UP})
+
+    task = hass.async_create_background_task(_end_season(hass), "test end season")
+    await asyncio.sleep(0.05)
+    hass.states.async_set("switch.hoch", "on")
+    await asyncio.sleep(0)
+    hass.states.async_set("switch.hoch", "off")  # die Winde hat sich selbst gestoppt, der Endschalter blieb aus
+    with pytest.raises(HomeAssistantError) as err:
+        await task
+
+    assert err.value.translation_key == "end_switch_timeout"
+    assert _summary(service_calls) == [
+        ("homeassistant", "turn_on", {"entity_id": ["switch.hoch"]}),
+        ("homeassistant", "turn_off", {"entity_id": ["switch.hoch"]}),  # der Schalter ist sicher aus
+    ]  # der Strom der Winde bleibt an
+    assert _runtime(entry).status == "error"
+
+
+async def test_the_up_switch_is_turned_off_again_when_the_end_switch_never_comes(hass, cams, service_calls) -> None:
+    hass.states.async_set("binary_sensor.oben", "off")
+    await _setup(hass, options={"finish": {**DRIVE_UP, "wait_seconds": 0}})
+
+    with pytest.raises(HomeAssistantError):
+        await _end_season(hass)
+
+    assert [(c.service, dict(c.data)["entity_id"]) for c in service_calls] == [
+        ("turn_on", ["switch.hoch"]),
+        ("turn_off", ["switch.hoch"]),
+    ]
+
+
+async def test_an_up_switch_without_an_end_switch_is_ignored(hass, cams, service_calls) -> None:
+    options = {"finish": {"cover": "cover.winde", "up_switch": "switch.hoch"}}
+    await _setup(hass, options=options)
+
+    await _end_season(hass)
+
+    assert _summary(service_calls) == [("cover", "set_cover_position", {"entity_id": "cover.winde", "position": 0})]
+
+
 async def test_end_season_without_settings_still_ends_it(hass, cams, service_calls) -> None:
     await _setup(hass)
     events = async_capture_events(hass, EVENT_SEASON_ENDED)

@@ -96,10 +96,11 @@ Die Tasten **Saison vorbereiten** und **Saison beenden** am Gerät jedes Spielpa
 | Lichter | Lichter, die mit **Farbe** und **Helligkeit** eingeschaltet werden. Hast du Lichter gewählt, kommt eine Seite, auf der du für jedes Licht die Farbe mit dem Farbwähler und die Helligkeit in Prozent einstellst. Ein leeres Feld heißt: das Licht geht so an, wie es zuletzt war. Die Werte werden gespeichert. Ein Weiß oder Grau (Sättigung unter 10 %) geht als **Farbtemperatur** an die Lampe, nicht als Farbe. Erst geht das Licht mit der Helligkeit an, nach 2 Sekunden folgt die Farbe als eigener Befehl, weil manche Lampen (zum Beispiel Matter-Lampen) die Farbe sonst nicht übernehmen |
 | Rollo, Winde | eine Entity vom Typ `cover`, die auf eine Position (0 bis 100 %) fährt. Standard: 50 % bei „Saison vorbereiten“, 0 % bei „Saison beenden“. Die Position, die ein Ort hat, fährt diese Winde erst beim Start einer Aufnahme an (siehe oben, Schritt 3 des Ortes) |
 
-Nur **Saison beenden** hat drei Felder mehr, für eine Winde, die erst ausgehen darf, wenn sie oben angekommen ist:
+Nur **Saison beenden** hat vier Felder mehr, für eine Winde, die erst ausgehen darf, wenn sie oben angekommen ist:
 
 | Feld | Bedeutung |
 |---|---|
+| Winde hochfahren: Schalter „hoch“ | der Schalter `hoch` der Winde. Ist er und der Endschalter gewählt, fährt „Saison beenden“ die Winde mit diesem Schalter **bis zum Endschalter** (wie dein Skript beim Kalibrieren), statt über die Position. Die Zeitschätzung allein lässt die Winde oft knapp vor dem Endschalter stehen, dann geht der Endschalter nie an. Der Schalter geht danach wieder aus. Steht die Winde schon oben (Endschalter an), fährt sie nicht |
 | Ausschalten, sobald der Endschalter an ist | Ziele, die erst ausgeschaltet werden, wenn der Endschalter an ist, zum Beispiel der Strom der Winde |
 | Endschalter | eine Entity (`binary_sensor`, `switch` oder `input_boolean`), die „an“ ist, sobald die Winde oben ist, zum Beispiel „Endschalter oben“ |
 | Höchstens warten | so viele Sekunden wartet die Taste auf den Endschalter (Standard 120) |

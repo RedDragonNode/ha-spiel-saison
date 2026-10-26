@@ -68,6 +68,7 @@ DEFAULT_END_SWITCH_WAIT = 120  # Sekunden, so lange wartet „Saison beenden“ 
 WHITE_SATURATION = 10.0  # Prozent: ein Licht mit weniger Sättigung wird als Weiß über die Farbtemperatur eingestellt
 MIN_KELVIN = 2000  # so warm und so kalt darf das Weiß sein, die Lampe begrenzt es auf ihren Bereich
 MAX_KELVIN = 6500
+END_SWITCH_GRACE_S = 3.0  # so lange darf der Endschalter nach dem Halt der Winde noch brauchen, um „an“ zu melden
 LIGHT_COLOR_DELAY_S = 2.0  # so lange nach dem Einschalten (mit Helligkeit) wartet „Saison …“, bevor die Farbe folgt
 
 TARGET_FIELDS = (CONF_START_OFF, CONF_START_ON, CONF_END_OFF, CONF_END_ON)
@@ -82,6 +83,7 @@ STEP_COVER = "cover"  # Rollo, Winde oder Ähnliches, das auf eine Position fäh
 STEP_COVER_POSITION = "cover_position"
 STEP_AFTER_OFF = "after_off"  # Ziele, die erst ausgeschaltet werden, wenn der Endschalter an ist (nur „Saison beenden“)
 STEP_END_SWITCH = "end_switch"  # Endschalter, zum Beispiel „Endschalter oben“ einer Winde
+STEP_UP_SWITCH = "up_switch"  # Schalter „hoch“ der Winde, fährt sie bis zum Endschalter (nur „Saison beenden“)
 STEP_WAIT = "wait_seconds"  # so lange wartet die Taste höchstens auf den Endschalter
 LIGHT_RGB = "rgb"
 LIGHT_BRIGHTNESS = "brightness"

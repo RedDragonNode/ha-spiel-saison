@@ -203,13 +203,14 @@
       },
       "finish": {
         "title": "End season",
-        "description": "Applies only to the “End season” button and the service of the same name, the same for all play partners and places, not to the recording. Everything is optional. You can choose entities, devices, areas or labels, also scenes and scripts. Order: the cover or winch moves first (it still needs power for that), then the targets under “Turn off” are turned off, the ones under “Turn on” are turned on and the lights are turned on. Finally the button waits for the end switch and only then turns off the targets under “Turn off once the end switch is on”, for example the winch. If the end switch does not come on in time, they stay on and the button reports an error. If you choose lights, a page for their colour and brightness follows. Everything is saved when you submit the last page.",
+        "description": "Applies only to the “End season” button and the service of the same name, the same for all play partners and places, not to the recording. Everything is optional. You can choose entities, devices, areas or labels, also scenes and scripts. Order: the cover or winch moves first (it still needs power for that), then the targets under “Turn off” are turned off, the ones under “Turn on” are turned on and the lights are turned on. Finally the button waits for the end switch and only then turns off the targets under “Turn off once the end switch is on”, for example the winch. If the end switch does not come on in time, they stay on and the button reports an error. If an “up” switch and an end switch are chosen, the button drives the winch with that switch up to the end switch instead of to the position, and turns it off afterwards. After the time estimate alone the winch often stops just short of the end switch. If you choose lights, a page for their colour and brightness follows. Everything is saved when you submit the last page.",
         "data": {
           "off": "Turn off when ending the season",
           "on": "Turn on when ending the season",
           "lights": "Turn on lights (colour and brightness on the next page)",
           "cover": "Move when ending the season (cover, winch)",
           "cover_position": "Position (0 to 100)",
+          "up_switch": "Drive the winch all the way up: “up” switch (runs until the end switch)",
           "after_off": "Turn off once the end switch is on (for example the winch)",
           "end_switch": "End switch (for example the upper end switch)",
           "wait_seconds": "Wait for the end switch at most"

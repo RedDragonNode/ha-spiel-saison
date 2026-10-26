@@ -98,6 +98,7 @@ def fake_recorder() -> Generator[type[FakeRecorder]]:
 def no_light_delay(monkeypatch: pytest.MonkeyPatch) -> None:
     """Die Tests warten nicht, bis die Farbe der Lichter noch einmal geschickt wird."""
     monkeypatch.setattr("custom_components.spiel_saison.manager.LIGHT_COLOR_DELAY_S", 0)
+    monkeypatch.setattr("custom_components.spiel_saison.manager.END_SWITCH_GRACE_S", 0)
 
 
 @pytest.fixture

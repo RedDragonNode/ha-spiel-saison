@@ -585,6 +585,7 @@ async def test_the_integration_has_a_configure_dialog_for_the_two_season_buttons
         "lights",
         "cover",
         "cover_position",
+        "up_switch",
         "after_off",
         "end_switch",
         "wait_seconds",
@@ -698,6 +699,7 @@ async def test_the_end_switch_is_saved_with_the_targets_that_wait_for_it(hass: H
         step,
         {
             "cover": "cover.winde",
+            "up_switch": "switch.winde_hoch",
             "after_off": {"entity_id": ["switch.winde"]},
             "end_switch": "binary_sensor.endschalter_oben",
             "wait_seconds": 90,
@@ -709,6 +711,7 @@ async def test_the_end_switch_is_saved_with_the_targets_that_wait_for_it(hass: H
     assert entry.options["finish"] == {
         "cover": "cover.winde",
         "cover_position": 0,
+        "up_switch": "switch.winde_hoch",
         "after_off": {"entity_id": ["switch.winde"]},
         "end_switch": "binary_sensor.endschalter_oben",
         "wait_seconds": 90,

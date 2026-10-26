@@ -203,13 +203,14 @@
       },
       "finish": {
         "title": "Saison beenden",
-        "description": "Gilt nur für die Taste „Saison beenden“ und den gleichnamigen Dienst, für alle Spielpartner und Orte gleich, nicht für die Aufnahme. Alles ist optional. Du kannst Entities, Geräte, Bereiche oder Labels wählen, auch Szenen und Skripte. Reihenfolge: Das Rollo oder die Winde fährt zuerst (sie braucht dafür noch Strom), dann werden die Ziele bei „Ausschalten“ ausgeschaltet, die bei „Einschalten“ eingeschaltet und die Lichter eingeschaltet. Zuletzt wartet die Taste auf den Endschalter und schaltet erst dann die Ziele bei „Ausschalten, sobald der Endschalter an ist“ aus, zum Beispiel die Winde. Kommt der Endschalter nicht rechtzeitig, bleiben sie an und die Taste meldet einen Fehler. Wählst du Lichter, folgt eine Seite für ihre Farbe und Helligkeit. Gespeichert wird, wenn du die letzte Seite abschickst.",
+        "description": "Gilt nur für die Taste „Saison beenden“ und den gleichnamigen Dienst, für alle Spielpartner und Orte gleich, nicht für die Aufnahme. Alles ist optional. Du kannst Entities, Geräte, Bereiche oder Labels wählen, auch Szenen und Skripte. Reihenfolge: Das Rollo oder die Winde fährt zuerst (sie braucht dafür noch Strom), dann werden die Ziele bei „Ausschalten“ ausgeschaltet, die bei „Einschalten“ eingeschaltet und die Lichter eingeschaltet. Zuletzt wartet die Taste auf den Endschalter und schaltet erst dann die Ziele bei „Ausschalten, sobald der Endschalter an ist“ aus, zum Beispiel die Winde. Kommt der Endschalter nicht rechtzeitig, bleiben sie an und die Taste meldet einen Fehler. Ist ein Schalter „hoch“ und ein Endschalter gewählt, fährt die Taste die Winde mit diesem Schalter bis zum Endschalter, statt über die Position, und schaltet ihn danach wieder aus. Nach der Zeitschätzung allein bleibt die Winde oft knapp vor dem Endschalter stehen. Wählst du Lichter, folgt eine Seite für ihre Farbe und Helligkeit. Gespeichert wird, wenn du die letzte Seite abschickst.",
         "data": {
           "off": "Beim Beenden ausschalten",
           "on": "Beim Beenden einschalten",
           "lights": "Lichter einschalten (Farbe und Helligkeit auf der nächsten Seite)",
           "cover": "Beim Beenden fahren (Rollo, Winde)",
           "cover_position": "Position (0 bis 100)",
+          "up_switch": "Winde ganz hochfahren: Schalter „hoch“ (fährt bis zum Endschalter)",
           "after_off": "Ausschalten, sobald der Endschalter an ist (zum Beispiel die Winde)",
           "end_switch": "Endschalter (zum Beispiel Endschalter oben)",
           "wait_seconds": "Höchstens auf den Endschalter warten"
