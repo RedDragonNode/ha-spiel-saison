@@ -53,13 +53,14 @@
       "step": {
         "user": {
           "title": "Neuer Spielpartner",
-          "description": "Jeder Spielpartner hat eigene Saisons, Zähler und einen eigenen Ordner. Die Kameras gehören zu den Orten, die du danach für ihn anlegst. Die Nummer erscheint im Ordner und im Dateinamen, zum Beispiel als 02. Der Spitzname ist optional. Bei den Vorlieben tippst du eigene Einträge ein und bestätigst jeden mit Enter. Alles, was du je eingegeben hast, steht danach bei jedem weiteren Spielpartner zur Wahl. Jede Vorliebe bekommt am Gerät des Spielpartners einen Eintrag unter „Diagnose“. Bei den Vorlieben zum Bearbeiten gibt es zusätzlich einen Schalter „dabei“ und einen Zähler. Die Ansage ist optional: Sie läuft über eine notify-Entity, zum Beispiel einen Echo, beim Start und beim Ende einer Aufnahme. In den Texten kannst du die Platzhalter nickname, partner, nr, saison und ort jeweils in geschweiften Klammern benutzen.",
+          "description": "Jeder Spielpartner hat eigene Saisons, Zähler und einen eigenen Ordner. Die Kameras gehören zu den Orten, die du danach für ihn anlegst. Die Nummer erscheint im Ordner und im Dateinamen, zum Beispiel als 02. Der Spitzname ist optional. Bei den Vorlieben tippst du eigene Einträge ein und bestätigst jeden mit Enter. Alles, was du je eingegeben hast, steht danach bei jedem weiteren Spielpartner zur Wahl. Jede Vorliebe bekommt am Gerät des Spielpartners einen Eintrag unter „Diagnose“. Bei den Vorlieben zum Bearbeiten gibt es zusätzlich einen Schalter „dabei“ und einen Zähler. Die Ansage ist optional: Sie läuft über eine notify-Entity, zum Beispiel einen Echo, beim Start und beim Ende einer Aufnahme. In den Texten kannst du die Platzhalter nickname, partner, nr, saison und ort jeweils in geschweiften Klammern benutzen. Bei „Lichter“ wählst du die Lichter, die dieser Spielpartner einstellen darf. Er stellt sie in Home Assistant so ein, wie er es am liebsten mag, und drückt am Gerät die Taste „Beleuchtung speichern“. Mit der ersten Aufnahme jeder Saison stellt sich diese Beleuchtung wieder ein.",
           "data": {
             "name": "Name",
             "number": "Nummer",
             "nickname": "Spitzname (Platzhalter nickname in den Ansagen)",
             "likes": "Eigene Vorlieben (tippen und mit Enter bestätigen)",
             "treats": "Vorlieben zum Bearbeiten seines Partners (tippen und mit Enter bestätigen)",
+            "lights": "Lichter, die er einstellen darf (seine Beleuchtung)",
             "announce_entity": "Ansage über (notify-Entity, z. B. Alexa)",
             "announce_start": "Ansage beim Start",
             "announce_end": "Ansage beim Ende"
@@ -67,13 +68,14 @@
         },
         "reconfigure": {
           "title": "Spielpartner bearbeiten",
-          "description": "Name, Nummer, Spitzname, Vorlieben und Ansage ändern. Neue Vorlieben bekommen beim Speichern ihre Einträge am Gerät, gestrichene verschwinden dort. Zähler und Saison bleiben erhalten. Schon vorhandene Aufnahmen bleiben in ihrem Ordner, neue gehen in den Ordner mit dem geänderten Namen. Die Kameras stehen bei den Orten. In den Ansagen kannst du die Platzhalter nickname, partner, nr, saison und ort jeweils in geschweiften Klammern benutzen.",
+          "description": "Name, Nummer, Spitzname, Vorlieben und Ansage ändern. Neue Vorlieben bekommen beim Speichern ihre Einträge am Gerät, gestrichene verschwinden dort. Zähler und Saison bleiben erhalten. Schon vorhandene Aufnahmen bleiben in ihrem Ordner, neue gehen in den Ordner mit dem geänderten Namen. Die Kameras stehen bei den Orten. In den Ansagen kannst du die Platzhalter nickname, partner, nr, saison und ort jeweils in geschweiften Klammern benutzen. Bei „Lichter“ wählst du die Lichter, die dieser Spielpartner einstellen darf. Er stellt sie in Home Assistant so ein, wie er es am liebsten mag, und drückt am Gerät die Taste „Beleuchtung speichern“. Mit der ersten Aufnahme jeder Saison stellt sich diese Beleuchtung wieder ein.",
           "data": {
             "name": "Name",
             "number": "Nummer",
             "nickname": "Spitzname (Platzhalter nickname in den Ansagen)",
             "likes": "Eigene Vorlieben (tippen und mit Enter bestätigen)",
             "treats": "Vorlieben zum Bearbeiten seines Partners (tippen und mit Enter bestätigen)",
+            "lights": "Lichter, die er einstellen darf (seine Beleuchtung)",
             "announce_entity": "Ansage über (notify-Entity, z. B. Alexa)",
             "announce_start": "Ansage beim Start",
             "announce_end": "Ansage beim Ende"
@@ -299,6 +301,9 @@
       },
       "end_season": {
         "name": "Saison beenden"
+      },
+      "save_lighting": {
+        "name": "Beleuchtung speichern"
       }
     },
     "number": {
@@ -376,6 +381,16 @@
           "description": "Name des Spielpartners."
         }
       }
+    },
+    "save_lighting": {
+      "name": "Beleuchtung speichern",
+      "description": "Speichert für einen Spielpartner die Beleuchtung, wie sie jetzt ist: bei jedem seiner Lichter, ob es an ist, die Farbe und die Helligkeit. Mit der ersten Aufnahme jeder Saison stellt sich diese Beleuchtung wieder ein.",
+      "fields": {
+        "partner": {
+          "name": "Spielpartner",
+          "description": "Name des Spielpartners."
+        }
+      }
     }
   },
   "exceptions": {
@@ -408,6 +423,12 @@
     },
     "end_switch_timeout": {
       "message": "Bei {partner} war der Endschalter nicht rechtzeitig an ({details}). Die Ziele „Ausschalten, sobald der Endschalter an ist“ bleiben an."
+    },
+    "no_partner_lights": {
+      "message": "Bei {partner} sind noch keine Lichter gewählt. Bitte beim Spielpartner unter „Lichter“ eintragen, welche er einstellen darf."
+    },
+    "lighting_unreadable": {
+      "message": "Keines der Lichter von {partner} ist gerade erreichbar, es wurde nichts gespeichert."
     }
   },
   "issues": {

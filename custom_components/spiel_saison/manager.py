@@ -12,7 +12,7 @@ from typing import Any
 from homeassistant.components.camera import async_get_stream_source
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_NAME, STATE_OFF, STATE_ON
-from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, callback
+from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, State, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
@@ -42,6 +42,7 @@ from .const import (
     CONF_NICKNAME,
     CONF_NUMBER,
     CONF_PARTNER,
+    CONF_PARTNER_LIGHTS,
     CONF_PARTNER_PATTERN,
     CONF_RECORDER_KEY,
     CONF_RECORDER_URL,
@@ -70,6 +71,7 @@ from .const import (
     KIND_TREAT,
     LIGHT_BRIGHTNESS,
     LIGHT_COLOR_DELAY_S,
+    LIGHT_KELVIN,
     LIGHT_RGB,
     MAX_KELVIN,
     MIN_KELVIN,
@@ -113,6 +115,7 @@ class PartnerCfg:
     nickname: str = ""
     likes: list[str] = field(default_factory=list)  # eigene Vorlieben
     treats: list[str] = field(default_factory=list)  # Vorlieben zum Bearbeiten seines Partners
+    lights: list[str] = field(default_factory=list)  # Lichter, die er einstellen darf (seine Beleuchtung)
     announce_entity: str = ""
     announce_start: str = ""
     announce_end: str = ""
@@ -167,11 +170,29 @@ class PartnerState:
     seasons: dict[str, dict[str, Any]] = field(default_factory=dict)  # abgeschlossene Saisons
     pref_counts: dict[str, int] = field(default_factory=dict)  # Schlüssel der Vorliebe -> Aufnahmen mit „dabei“
     pref_on: list[str] = field(default_factory=list)  # Schlüssel der Vorlieben, die „dabei“ sind
+    lighting: dict[str, dict[str, Any]] = field(default_factory=dict)  # gespeicherte Beleuchtung: Licht -> Zustand
 
 
 def _target(value: Any) -> dict[str, Any]:
     """Ziel-Auswahl (Entities, Geräte, Bereiche, Labels) ohne leere Listen."""
     return {k: v for k, v in (value or {}).items() if v} if isinstance(value, dict) else {}
+
+
+def _lighting_of(state: State) -> dict[str, Any] | None:
+    """Zustand eines Lichts zum Speichern der Beleuchtung. None, wenn das Licht nicht erreichbar ist."""
+    if state.state == STATE_OFF:
+        return {"on": False}
+    if state.state != STATE_ON:
+        return None
+    look: dict[str, Any] = {"on": True}
+    if (brightness := state.attributes.get("brightness")) is not None:
+        look[LIGHT_BRIGHTNESS] = max(1, round(int(brightness) * 100 / 255))
+    mode = state.attributes.get("color_mode")
+    if mode == "color_temp" and (kelvin := state.attributes.get("color_temp_kelvin")):
+        look[LIGHT_KELVIN] = int(kelvin)
+    elif mode in ("hs", "xy", "rgb", "rgbw", "rgbww") and (rgb := state.attributes.get("rgb_color")):
+        look[LIGHT_RGB] = [int(part) for part in rgb[:3]]
+    return look
 
 
 def _season_step(raw: Any, default_position: int) -> SeasonStep:
@@ -240,6 +261,8 @@ class SpielSaisonManager:
             state.season_start = state.season_start or today
             keys = {key for kind, _name, key in self.preferences(self.partners[sid]) if kind in COUNTED_KINDS}
             state.pref_on = [key for key in state.pref_on if key in keys]
+            lights = self.partners[sid].lights
+            state.lighting = {eid: look for eid, look in state.lighting.items() if eid in lights}
             self.states[sid] = state
         chosen = stored.get("places") or {}
         legacy = stored.get("place")  # bis 0.1.x gab es einen gewählten Ort für alle
@@ -262,6 +285,7 @@ class SpielSaisonManager:
                     nickname=(d.get(CONF_NICKNAME) or "").strip(),
                     likes=logic.clean_names(d.get(CONF_LIKES) or []),
                     treats=logic.clean_names(d.get(CONF_TREATS) or []),
+                    lights=list(d.get(CONF_PARTNER_LIGHTS) or []),
                     announce_entity=d.get(CONF_ANNOUNCE_ENTITY) or "",
                     announce_start=d.get(CONF_ANNOUNCE_START) or "",
                     announce_end=d.get(CONF_ANNOUNCE_END) or "",
@@ -691,6 +715,8 @@ class SpielSaisonManager:
     @staticmethod
     def _light_color(look: dict[str, Any]) -> dict[str, Any]:
         """Die Farbe eines Lichts als Dienstdaten: ein Weiß als Farbtemperatur, jede andere Farbe als `rgb_color`."""
+        if look.get(LIGHT_KELVIN):
+            return {"color_temp_kelvin": max(MIN_KELVIN, min(MAX_KELVIN, int(look[LIGHT_KELVIN])))}
         if LIGHT_RGB not in look:
             return {}
         red, green, blue = (int(part) for part in look[LIGHT_RGB])
@@ -712,11 +738,55 @@ class SpielSaisonManager:
             if LIGHT_BRIGHTNESS in look:
                 data["brightness_pct"] = int(look[LIGHT_BRIGHTNESS])
             await self._call("light", "turn_on", data)
-        coloured = {entity_id: self._light_color(look) for entity_id, look in lights.items() if LIGHT_RGB in look}
+        coloured = {
+            entity_id: self._light_color(look)
+            for entity_id, look in lights.items()
+            if LIGHT_RGB in look or look.get(LIGHT_KELVIN)
+        }
         if coloured:
             await asyncio.sleep(LIGHT_COLOR_DELAY_S)
             for entity_id, color in coloured.items():
                 await self._call("light", "turn_on", {"entity_id": entity_id, **color})
+
+    async def _apply_lighting(self, p: PartnerCfg) -> None:
+        """Die gespeicherte Beleuchtung einstellen: gespeicherte Aus-Lichter aus, der Rest wie gespeichert."""
+        saved = self.states[p.subentry_id].lighting
+        off = [entity_id for entity_id in p.lights if entity_id in saved and not saved[entity_id].get("on", True)]
+        if off:
+            await self._call("light", "turn_off", {"entity_id": off})
+        await self._lights_on(
+            {entity_id: look for entity_id, look in saved.items() if entity_id in p.lights and look.get("on", True)}
+        )
+
+    async def async_save_lighting(self, ref: str) -> dict[str, Any]:
+        """Die Beleuchtung, wie sie jetzt ist, für den Spielpartner speichern (für die nächsten Saisons)."""
+        p = self.partner(ref)
+        if not p.lights:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="no_partner_lights",
+                translation_placeholders={"partner": p.name},
+            )
+        st = self.states[p.subentry_id]
+        saved: dict[str, dict[str, Any]] = {}
+        for entity_id in p.lights:
+            state = self.hass.states.get(entity_id)
+            if state is not None and (look := _lighting_of(state)) is not None:
+                saved[entity_id] = look
+            elif entity_id in st.lighting:  # nicht erreichbar: der gespeicherte Zustand bleibt
+                saved[entity_id] = st.lighting[entity_id]
+        if not saved:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="lighting_unreadable",
+                translation_placeholders={"partner": p.name},
+            )
+        st.lighting = saved
+        await self._save()
+        on = sum(1 for look in saved.values() if look.get("on", True))
+        self._set_message(f"{p.name}: lighting saved ({len(saved)} lights, {on} on)")
+        self.notify()
+        return {"partner": p.name, "lights": len(saved), "on": on}
 
     async def _stage_season(self, p: PartnerCfg, step: SeasonStep, *, cover_first: bool = False) -> None:
         """„Saison vorbereiten“ oder „Saison beenden“: ausschalten, einschalten, Lichter mit Farbe, Rollo oder Winde.
@@ -752,6 +822,8 @@ class SpielSaisonManager:
                 await self._call(CTRONICS_DOMAIN, "ptz_goto_preset", {"entity_id": eids, "preset": number})
         await self._turn("turn_off", place.start_off)
         await self._turn("turn_on", place.start_on)
+        if self.states[partner.subentry_id].count_season == 0:  # erst mit der ersten Aufnahme der Saison
+            await self._apply_lighting(partner)
         await self._announce(partner, place, partner.announce_start)
 
     async def _stage_end(self, partner: PartnerCfg, place: PlaceCfg, *, wait: bool = True) -> None:

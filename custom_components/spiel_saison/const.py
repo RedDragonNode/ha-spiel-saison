@@ -35,6 +35,7 @@ CONF_NUMBER = "number"  # Nummer des Spielpartners ("nr" in den Mustern)
 CONF_NICKNAME = "nickname"  # Spitzname, in den Ansagen als Platzhalter nickname benutzbar
 CONF_LIKES = "likes"  # Namen der eigenen Vorlieben
 CONF_TREATS = "treats"  # Namen der Vorlieben zum Bearbeiten seines Partners
+CONF_PARTNER_LIGHTS = "lights"  # Lichter, die dieser Spielpartner einstellen darf (seine Beleuchtung)
 CONF_ANNOUNCE_ENTITY = "announce_entity"  # notify-Entity für Ansagen
 CONF_ANNOUNCE_START = "announce_start"
 CONF_ANNOUNCE_END = "announce_end"
@@ -87,6 +88,7 @@ STEP_UP_SWITCH = "up_switch"  # Schalter „hoch“ der Winde, fährt sie bis zu
 STEP_WAIT = "wait_seconds"  # so lange wartet die Taste höchstens auf den Endschalter
 LIGHT_RGB = "rgb"
 LIGHT_BRIGHTNESS = "brightness"
+LIGHT_KELVIN = "kelvin"  # nur bei der Beleuchtung eines Spielpartners: Weiß als Farbtemperatur
 
 CTRONICS_DOMAIN = "ctronics_cam"  # nur diese Kameras fahren eine PTZ-Position an
 CTRONICS_PRESETS_OPTION = "presets"  # Option der Ctronics-Integration: Zeilen wie "1: Schaukel"
@@ -99,6 +101,7 @@ SERVICE_STOP = "stop_recording"
 SERVICE_PREPARE = "prepare"
 SERVICE_NEW_SEASON = "new_season"
 SERVICE_END_SEASON = "end_season"
+SERVICE_SAVE_LIGHTING = "save_lighting"
 ATTR_PARTNER = "partner"
 ATTR_PLACE = "place"
 

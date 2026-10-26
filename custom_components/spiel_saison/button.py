@@ -1,4 +1,4 @@
-"""Tasten je Spielpartner: Saison vorbereiten (mit Saison-Ordner) und Saison beenden."""
+"""Tasten je Spielpartner: Saison vorbereiten (mit Saison-Ordner), Saison beenden und Beleuchtung speichern."""
 
 from __future__ import annotations
 
@@ -16,7 +16,10 @@ async def async_setup_entry(
 ) -> None:
     m = entry.runtime_data
     for sid, partner in m.partners.items():
-        async_add_entities([PrepareButton(m, partner), EndSeasonButton(m, partner)], config_subentry_id=sid)
+        async_add_entities(
+            [PrepareButton(m, partner), EndSeasonButton(m, partner), SaveLightingButton(m, partner)],
+            config_subentry_id=sid,
+        )
 
 
 class PrepareButton(PartnerEntity, ButtonEntity):
@@ -41,3 +44,15 @@ class EndSeasonButton(PartnerEntity, ButtonEntity):
 
     async def async_press(self) -> None:
         await self.manager.async_end_season(self.sid)
+
+
+class SaveLightingButton(PartnerEntity, ButtonEntity):
+    """Speichert die Beleuchtung des Spielpartners, wie sie jetzt ist (gilt ab der ersten Aufnahme der Saison)."""
+
+    _attr_translation_key = "save_lighting"
+
+    def __init__(self, m: SpielSaisonManager, partner: PartnerCfg) -> None:
+        super().__init__(m, partner, "save_lighting")
+
+    async def async_press(self) -> None:
+        await self.manager.async_save_lighting(self.sid)

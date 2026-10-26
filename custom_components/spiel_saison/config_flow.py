@@ -39,6 +39,7 @@ from .const import (
     CONF_NICKNAME,
     CONF_NUMBER,
     CONF_PARTNER,
+    CONF_PARTNER_LIGHTS,
     CONF_PARTNER_PATTERN,
     CONF_RECORDER_KEY,
     CONF_RECORDER_URL,
@@ -251,6 +252,7 @@ class PartnerSubentryFlow(ConfigSubentryFlow):
                     CONF_NICKNAME: (user_input.get(CONF_NICKNAME) or "").strip(),
                     CONF_LIKES: logic.clean_names(user_input.get(CONF_LIKES) or [], catalogs[CONF_LIKES]),
                     CONF_TREATS: logic.clean_names(user_input.get(CONF_TREATS) or [], catalogs[CONF_TREATS]),
+                    CONF_PARTNER_LIGHTS: list(user_input.get(CONF_PARTNER_LIGHTS) or []),
                     CONF_ANNOUNCE_START: (user_input.get(CONF_ANNOUNCE_START) or "").strip(),
                     CONF_ANNOUNCE_END: (user_input.get(CONF_ANNOUNCE_END) or "").strip(),
                 }
@@ -284,6 +286,9 @@ class PartnerSubentryFlow(ConfigSubentryFlow):
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             )
+        fields[vol.Optional(CONF_PARTNER_LIGHTS)] = selector.EntitySelector(
+            selector.EntitySelectorConfig(domain="light", multiple=True)
+        )
         fields[vol.Optional(CONF_ANNOUNCE_ENTITY)] = selector.EntitySelector(
             selector.EntitySelectorConfig(domain="notify")
         )

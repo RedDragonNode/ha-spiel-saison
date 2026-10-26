@@ -41,3 +41,10 @@ end_season:
       example: Frank
       selector:
         text:
+save_lighting:
+  fields:
+    partner:
+      required: true
+      example: Frank
+      selector:
+        text:

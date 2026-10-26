@@ -46,6 +46,7 @@ async def test_partner_entities_exist(hass: HomeAssistant) -> None:
         ("select", "place"),
         ("button", "prepare"),
         ("button", "end_season"),
+        ("button", "save_lighting"),
         ("number", "season"),
         ("number", "recordings_season"),
         ("number", "recordings_total"),

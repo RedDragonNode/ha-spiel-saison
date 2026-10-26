@@ -166,6 +166,7 @@ async def test_partner_flow_creates_subentry_and_suggests_the_next_number(hass: 
         "nickname": "",
         "likes": [],
         "treats": [],
+        "lights": [],
         "announce_entity": "notify.echo",
         "announce_start": "Start",
         "announce_end": "Ende",
@@ -187,6 +188,7 @@ async def test_partner_announcement_is_optional(hass: HomeAssistant) -> None:
         "nickname": "",
         "likes": [],
         "treats": [],
+        "lights": [],
         "announce_start": "",
         "announce_end": "",
     }

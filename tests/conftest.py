@@ -132,6 +132,7 @@ def service_calls(hass: HomeAssistant) -> list[ServiceCall]:
         ("homeassistant", "turn_on"),
         ("homeassistant", "turn_off"),
         ("light", "turn_on"),
+        ("light", "turn_off"),
         ("notify", "send_message"),
         ("cover", "set_cover_position"),
         ("ctronics_cam", "ptz_goto_preset"),

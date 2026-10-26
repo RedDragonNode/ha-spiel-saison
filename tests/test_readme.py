@@ -23,6 +23,7 @@ def test_the_readme_keeps_its_sections() -> None:
     for section in (
         "### Spielpartner",
         "### Vorlieben",
+        "### Beleuchtung des Spielpartners",
         "### Orte",
         "### Saison vorbereiten und Saison beenden",
         "### Saison",

@@ -744,6 +744,107 @@ async def test_an_up_switch_without_an_end_switch_is_ignored(hass, cams, service
     assert _summary(service_calls) == [("cover", "set_cover_position", {"entity_id": "cover.winde", "position": 0})]
 
 
+def _light(hass, entity_id: str, state: str, **attributes) -> None:
+    hass.states.async_set(entity_id, state, attributes)
+
+
+async def test_the_lighting_of_a_partner_is_saved_as_it_is_now(hass, cams, service_calls) -> None:
+    _light(hass, "light.a", "on", brightness=128, color_mode="hs", rgb_color=(64, 255, 169))
+    _light(hass, "light.b", "on", brightness=255, color_mode="color_temp", color_temp_kelvin=3000)
+    _light(hass, "light.c", "off")
+    _light(hass, "light.d", "unavailable")
+    entry = await _setup(hass, lights=["light.a", "light.b", "light.c", "light.d"])
+
+    result = await hass.services.async_call(
+        DOMAIN, "save_lighting", {"partner": "Frank"}, blocking=True, return_response=True
+    )
+
+    assert result == {"partner": "Frank", "lights": 3, "on": 2}  # das nicht erreichbare Licht fehlt
+    assert _runtime(entry).states[FRANK].lighting == {
+        "light.a": {"on": True, "brightness": 50, "rgb": [64, 255, 169]},
+        "light.b": {"on": True, "brightness": 100, "kelvin": 3000},
+        "light.c": {"on": False},
+    }
+    assert service_calls == []  # Speichern schaltet nichts
+
+
+async def test_the_saved_lighting_stays_when_a_light_cannot_be_reached_later(hass, cams) -> None:
+    _light(hass, "light.a", "on", brightness=255, color_mode="hs", rgb_color=(1, 2, 3))
+    entry = await _setup(hass, lights=["light.a"])
+    await hass.services.async_call(DOMAIN, "save_lighting", {"partner": "Frank"}, blocking=True)
+    _light(hass, "light.a", "unavailable")
+
+    await hass.services.async_call(DOMAIN, "save_lighting", {"partner": "Frank"}, blocking=True)
+
+    assert _runtime(entry).states[FRANK].lighting["light.a"]["rgb"] == [1, 2, 3]
+
+
+async def test_saving_needs_lights_that_can_be_read(hass, cams) -> None:
+    await _setup(hass, lights=["light.a"])  # light.a gibt es nicht
+    with pytest.raises(ServiceValidationError) as unreadable:
+        await hass.services.async_call(DOMAIN, "save_lighting", {"partner": "Frank"}, blocking=True)
+    assert unreadable.value.translation_key == "lighting_unreadable"
+
+    with pytest.raises(ServiceValidationError) as none_chosen:
+        await hass.services.async_call(DOMAIN, "save_lighting", {"partner": "Tobias"}, blocking=True)  # keine Lichter
+    assert none_chosen.value.translation_key == "no_partner_lights"
+
+
+async def test_the_saved_lighting_is_set_with_the_first_recording_of_the_season_only(
+    hass, stream, cams, service_calls
+) -> None:
+    entry = await _setup(
+        hass, [make_place("Schaukel", start_on=BED)], lights=["light.a", "light.b", "light.c", "light.nicht_gewaehlt"]
+    )
+    _runtime(entry).states[FRANK].lighting = {
+        "light.a": {"on": True, "brightness": 50, "rgb": [64, 255, 169]},
+        "light.b": {"on": True, "brightness": 100, "kelvin": 3000},
+        "light.c": {"on": False},
+    }
+
+    await _start(hass)
+    first = _summary(service_calls)
+    await _stop(hass)
+    service_calls.clear()
+    await _start(hass)  # die zweite Aufnahme derselben Saison
+
+    assert first[0] == ("homeassistant", "turn_on", BED)  # zuerst der Beginn des Ortes
+    assert first[1:] == [
+        ("light", "turn_off", {"entity_id": ["light.c"]}),
+        ("light", "turn_on", {"entity_id": "light.a", "brightness_pct": 50}),
+        ("light", "turn_on", {"entity_id": "light.b", "brightness_pct": 100}),
+        ("light", "turn_on", {"entity_id": "light.a", "rgb_color": [64, 255, 169]}),
+        ("light", "turn_on", {"entity_id": "light.b", "color_temp_kelvin": 3000}),
+    ]
+    assert [c for c in _summary(service_calls) if c[0] == "light"] == []
+
+
+async def test_a_new_season_sets_the_lighting_again(hass, stream, cams, service_calls) -> None:
+    entry = await _setup(hass, lights=["light.a"])
+    _runtime(entry).states[FRANK].lighting = {"light.a": {"on": True, "brightness": 30}}
+    await _start(hass)
+    await _stop(hass)
+    _runtime(entry).states[FRANK].season_start = _days_ago(1)
+    await _prepare(hass)  # beginnt die Saison des Tages, die Zähler der Saison stehen wieder auf null
+    service_calls.clear()
+
+    await _start(hass)
+
+    assert _summary(service_calls) == [("light", "turn_on", {"entity_id": "light.a", "brightness_pct": 30})]
+
+
+async def test_a_light_that_is_no_longer_chosen_leaves_the_saved_lighting(hass, cams) -> None:
+    entry = await _setup(hass, lights=["light.a", "light.b"])
+    _runtime(entry).states[FRANK].lighting = {"light.a": {"on": False}, "light.b": {"on": False}}
+    await _runtime(entry)._save()
+    sub = entry.subentries[FRANK]
+
+    hass.config_entries.async_update_subentry(entry, sub, data={**sub.data, "lights": ["light.a"]})
+    await hass.async_block_till_done()
+
+    assert list(_runtime(entry).states[FRANK].lighting) == ["light.a"]  # nach dem Neuladen
+
+
 async def test_end_season_without_settings_still_ends_it(hass, cams, service_calls) -> None:
     await _setup(hass)
     events = async_capture_events(hass, EVENT_SEASON_ENDED)

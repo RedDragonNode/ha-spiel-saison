@@ -53,13 +53,14 @@
       "step": {
         "user": {
           "title": "New play partner",
-          "description": "Every play partner has their own seasons, counters and folder. The cameras belong to the places you add for them afterwards. The number appears in the folder and the file name, for example as 02. The nickname is optional. For the preferences you type your own entries and confirm each with Enter. Everything you ever entered is offered for every further play partner. Every preference gets an entry under “Diagnostic” on the play partner's device. Preferences for working also get an “included” switch and a counter. The announcement is optional: it goes through a notify entity, for example an Echo, when a recording starts and ends. In the texts you can use the placeholders nickname, partner, nr, saison and ort, each in curly braces.",
+          "description": "Every play partner has their own seasons, counters and folder. The cameras belong to the places you add for them afterwards. The number appears in the folder and the file name, for example as 02. The nickname is optional. For the preferences you type your own entries and confirm each with Enter. Everything you ever entered is offered for every further play partner. Every preference gets an entry under “Diagnostic” on the play partner's device. Preferences for working also get an “included” switch and a counter. The announcement is optional: it goes through a notify entity, for example an Echo, when a recording starts and ends. In the texts you can use the placeholders nickname, partner, nr, saison and ort, each in curly braces. Under “Lights” you choose the lights this play partner may adjust. He sets them in Home Assistant the way he likes best and presses “Save lighting” on the device. With the first recording of every season this lighting is set again.",
           "data": {
             "name": "Name",
             "number": "Number",
             "nickname": "Nickname (placeholder nickname in the announcements)",
             "likes": "Own preferences (type and confirm with Enter)",
             "treats": "Preferences for working on their partner (type and confirm with Enter)",
+            "lights": "Lights he may adjust (his lighting)",
             "announce_entity": "Announce via (notify entity, e.g. Alexa)",
             "announce_start": "Announcement on start",
             "announce_end": "Announcement on end"
@@ -67,13 +68,14 @@
         },
         "reconfigure": {
           "title": "Edit play partner",
-          "description": "Change name, number, nickname, preferences and announcement. New preferences get their entries on the device when you save, removed ones disappear there. Counters and season are kept. Existing recordings stay in their folder, new ones go to the folder with the changed name. The cameras are set at the places. In the announcements you can use the placeholders nickname, partner, nr, saison and ort, each in curly braces.",
+          "description": "Change name, number, nickname, preferences and announcement. New preferences get their entries on the device when you save, removed ones disappear there. Counters and season are kept. Existing recordings stay in their folder, new ones go to the folder with the changed name. The cameras are set at the places. In the announcements you can use the placeholders nickname, partner, nr, saison and ort, each in curly braces. Under “Lights” you choose the lights this play partner may adjust. He sets them in Home Assistant the way he likes best and presses “Save lighting” on the device. With the first recording of every season this lighting is set again.",
           "data": {
             "name": "Name",
             "number": "Number",
             "nickname": "Nickname (placeholder nickname in the announcements)",
             "likes": "Own preferences (type and confirm with Enter)",
             "treats": "Preferences for working on their partner (type and confirm with Enter)",
+            "lights": "Lights he may adjust (his lighting)",
             "announce_entity": "Announce via (notify entity, e.g. Alexa)",
             "announce_start": "Announcement on start",
             "announce_end": "Announcement on end"
@@ -299,6 +301,9 @@
       },
       "end_season": {
         "name": "End season"
+      },
+      "save_lighting": {
+        "name": "Save lighting"
       }
     },
     "number": {
@@ -376,6 +381,16 @@
           "description": "Name of the play partner."
         }
       }
+    },
+    "save_lighting": {
+      "name": "Save lighting",
+      "description": "Saves the lighting of a play partner as it is now: for each of his lights whether it is on, the colour and the brightness. With the first recording of every season this lighting is set again.",
+      "fields": {
+        "partner": {
+          "name": "Play partner",
+          "description": "Name of the play partner."
+        }
+      }
     }
   },
   "exceptions": {
@@ -408,6 +423,12 @@
     },
     "end_switch_timeout": {
       "message": "The end switch of {partner} was not on in time ({details}). The targets “Turn off once the end switch is on” stay on."
+    },
+    "no_partner_lights": {
+      "message": "No lights are chosen for {partner} yet. Please enter under the play partner which lights he may adjust."
+    },
+    "lighting_unreadable": {
+      "message": "None of the lights of {partner} can be reached right now, nothing was saved."
     }
   },
   "issues": {

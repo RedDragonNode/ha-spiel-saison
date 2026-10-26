@@ -67,6 +67,16 @@ Die Vorlieben gibst du direkt beim Spielpartner ein, es braucht keine eigenen Ei
 
 Fügst du beim Bearbeiten des Spielpartners eine Vorliebe hinzu, tauchen ihre Entities nach dem Speichern am Gerät auf, gestrichene verschwinden dort samt Entities. Der Zähler läuft unter dem Namen der Vorliebe weiter, solange er gleich bleibt. Die Listen stehen auch in den Attributen `nickname`, `likes` und `treats` des Status-Sensors, zum Beispiel für eigene Automationen.
 
+### Beleuchtung des Spielpartners
+
+Jeder Spielpartner kann sich seine **Beleuchtung** einstellen und speichern lassen:
+
+1. Beim Spielpartner (*Bearbeiten*) wählst du unter **Lichter** die Lichter, die er einstellen darf.
+2. Der Spielpartner stellt diese Lichter in Home Assistant (oder in der Lampen-App) so ein, wie er es am liebsten mag: an oder aus, Farbe, Helligkeit.
+3. Am **Gerät des Spielpartners** drückt er die Taste **Beleuchtung speichern** (oder du rufst den Dienst `spiel_saison.save_lighting` auf). Gespeichert wird bei jedem seiner Lichter, ob es an ist, die Farbe und die Helligkeit.
+
+Die Beleuchtung stellt sich **mit der ersten Aufnahme jeder Saison** wieder ein, nach „Aufnahme beginnen“ und bevor der Vorlauf läuft. Bei den weiteren Aufnahmen der Saison bleiben die Lichter, wie sie sind. Gespeichert ist sie, bis du die Taste wieder drückst. Lichter, die er nicht mehr einstellen darf, fallen beim Speichern des Spielpartners aus der gespeicherten Beleuchtung heraus. Bei Lampen, die ein Weiß melden (fast ohne Farbe), geht das Weiß als Farbtemperatur an die Lampe, wie bei „Saison vorbereiten“.
+
 ### Orte
 
 *Spiel Saison → Ort hinzufügen* (Bett, Schaukel …). **Jeder Ort gehört zu einem Spielpartner** und bringt die Kameras mit, die dort aufnehmen. Ein Name darf bei mehreren Spielpartnern vorkommen („Bett“ bei Frank und „Bett“ bei Tobias sind zwei Orte). Der Dialog hat fünf Schritte (vier, wenn der Ort keine Ctronics-Kamera hat), alles außer Name, Spielpartner und Kameras ist optional:
@@ -83,7 +93,7 @@ Die Namen der Positionen stammen aus der Integration Ctronics 4K Cam (dort unter
 
 Die „Ziele“ wählst du wie in Automationen: Entities, Geräte, Bereiche oder **Labels**, auch Szenen und Skripte. Aufgerufen wird `homeassistant.turn_on` und `turn_off`.
 
-**Ablauf beim Starten:** Winde auf die Position des Ortes fahren (falls er eine hat) → Kameras auf ihre PTZ-Position fahren → „Aufnahme beginnen“ ausschalten → „Aufnahme beginnen“ einschalten → Ansage des Spielpartners → Vorlauf → Aufnahme. **Beim Beenden:** Aufnahme stoppen → Pause → „Aufnahme beenden“ ausschalten → „Aufnahme beenden“ einschalten → Ansage des Spielpartners. Schlägt ein Aufruf fehl, läuft der Rest trotzdem weiter, die Aufnahme ist wichtiger als das Licht (der Fehler steht im Protokoll und im Attribut `message` des Status-Sensors). Wird beim Vorlauf gestoppt, fällt die Aufnahme aus und „Aufnahme beenden“ stellt alles zurück. Lehnt die App den Start ab (z. B. Speicher voll), läuft „Aufnahme beenden“ ebenfalls. Ein Spielpartner ohne Ort kann nicht aufnehmen.
+**Ablauf beim Starten:** Winde auf die Position des Ortes fahren (falls er eine hat) → Kameras auf ihre PTZ-Position fahren → „Aufnahme beginnen“ ausschalten → „Aufnahme beginnen“ einschalten → bei der ersten Aufnahme der Saison die gespeicherte Beleuchtung des Spielpartners einstellen → Ansage des Spielpartners → Vorlauf → Aufnahme. **Beim Beenden:** Aufnahme stoppen → Pause → „Aufnahme beenden“ ausschalten → „Aufnahme beenden“ einschalten → Ansage des Spielpartners. Schlägt ein Aufruf fehl, läuft der Rest trotzdem weiter, die Aufnahme ist wichtiger als das Licht (der Fehler steht im Protokoll und im Attribut `message` des Status-Sensors). Wird beim Vorlauf gestoppt, fällt die Aufnahme aus und „Aufnahme beenden“ stellt alles zurück. Lehnt die App den Start ab (z. B. Speicher voll), läuft „Aufnahme beenden“ ebenfalls. Ein Spielpartner ohne Ort kann nicht aufnehmen.
 
 ### Saison vorbereiten und Saison beenden
 
@@ -125,6 +135,7 @@ Am Gerät **Spielpartner …**:
 | Auswahl **Ort** | der Ort für die Aufnahme. Es stehen nur die Orte dieses Spielpartners zur Wahl, die anderen erscheinen hier nicht (nur mit mindestens einem Ort) |
 | Taste **Saison vorbereiten** | beginnt die Saison des Tages (nur wenn es für heute noch keine gibt), legt den Ordner der Saison an, falls er fehlt, und führt die Einstellungen von „Saison vorbereiten“ aus (*Konfigurieren*) |
 | Taste **Saison beenden** | führt die Einstellungen von „Saison beenden“ aus (*Konfigurieren*, nicht während einer Aufnahme) und meldet das Ereignis `spiel_saison_season_ended` |
+| Taste **Beleuchtung speichern** | speichert die Beleuchtung der Lichter des Spielpartners, wie sie jetzt ist (an oder aus, Farbe, Helligkeit), für die erste Aufnahme jeder Saison |
 | Zahlen **Saison**, **Aufnahmen in Saison**, **Aufnahmen gesamt** | Zähler, von Hand änderbar |
 | Sensor **Status** | Bereit, Startet, Nimmt auf, Beendet. Attribute: Ort, Beginn, Aufnahmenummer, Kameras, `nickname`, `likes`, `treats` |
 | Sensoren **Aufnahmedauer in Saison / gesamt** (Stunden), **Längste Aufnahme in Saison** (Minuten), **Letzte Aufnahme** | Auswertung |
@@ -140,6 +151,7 @@ Die Zähler zählen eine Aufnahme, sobald die App sie gestartet hat.
 | `spiel_saison.stop_recording` | `partner` |
 | `spiel_saison.prepare` | `partner`, optional `place` (füllt nur den Platzhalter `{ort}` der Ordner-Muster); beginnt auch die Saison des Tages und legt ihren Ordner an (Antwort: `season`, `new_season`, `folder`, `folder_created`) |
 | `spiel_saison.end_season` | `partner`; führt die Einstellungen von „Saison beenden“ aus, nur ohne laufende Aufnahme (Antwort: `season`, `recordings`, `seconds`) |
+| `spiel_saison.save_lighting` | `partner`; speichert die Beleuchtung des Spielpartners, wie sie jetzt ist (Antwort: `lights`, `on`) |
 | `spiel_saison.new_season` | `partner`; Saison +1, Zähler und Auswertung der Saison auf null, die alte Saison wird gespeichert. Einmal pro Tag und nur ohne laufende Aufnahme (Antwort: `started`, bei `false` mit `reason: already_today`) |
 
 `partner` und `place` sind die Namen, Groß- und Kleinschreibung und Sonderzeichen sind egal. Die Dienste liefern eine Antwort mit dem Ergebnis.
