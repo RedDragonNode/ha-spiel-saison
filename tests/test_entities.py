@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
+import pytest
 from homeassistant.const import STATE_OFF, STATE_ON, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
@@ -47,9 +48,9 @@ async def test_partner_entities_exist(hass: HomeAssistant) -> None:
         ("button", "prepare"),
         ("button", "end_season"),
         ("button", "save_lighting"),
-        ("number", "season"),
-        ("number", "recordings_season"),
-        ("number", "recordings_total"),
+        ("sensor", "season"),
+        ("sensor", "recordings_season"),
+        ("sensor", "recordings_total"),
         ("sensor", "status"),
         ("sensor", "duration_season"),
         ("sensor", "duration_total"),
@@ -90,7 +91,7 @@ async def test_the_switch_starts_and_stops_the_recording(hass: HomeAssistant, st
     assert hass.states.get(hub_entity(hass, entry, "binary_sensor", "recording")).state == STATE_ON
     assert hass.states.get(hub_entity(hass, entry, "sensor", "current_partner")).state == "Frank"
     assert hass.states.get(hub_entity(hass, entry, "sensor", "status")).state == "recording"
-    assert hass.states.get(partner_entity(hass, entry, FRANK, "number", "recordings_total")).state == "1"
+    assert hass.states.get(partner_entity(hass, entry, FRANK, "sensor", "recordings_total")).state == "1"
     assert hass.states.get(partner_entity(hass, entry, FRANK, "sensor", "last_recording")).state != STATE_UNKNOWN
 
     await hass.services.async_call("switch", "turn_off", {"entity_id": switch}, blocking=True)
@@ -118,27 +119,69 @@ async def test_statistics_sensors_follow_a_finished_recording(hass: HomeAssistan
     assert last.attributes["duration_min"] == 90.0
 
 
-async def test_the_counters_can_be_set_by_hand_and_survive_a_reload(hass: HomeAssistant) -> None:
+async def test_the_counters_are_sensors_that_follow_edits_and_survive_a_reload(hass: HomeAssistant) -> None:
     entry = await _setup(hass)
-    season = partner_entity(hass, entry, FRANK, "number", "season")
-    total = partner_entity(hass, entry, FRANK, "number", "recordings_total")
+    season = partner_entity(hass, entry, FRANK, "sensor", "season")
+    total = partner_entity(hass, entry, FRANK, "sensor", "recordings_total")
 
-    await hass.services.async_call("number", "set_value", {"entity_id": season, "value": 3}, blocking=True)
-    await hass.services.async_call("number", "set_value", {"entity_id": total, "value": 41}, blocking=True)
+    await entry.runtime_data.async_edit_statistics(FRANK, {"season": 3, "count_total": 41})
     await hass.async_block_till_done()
     assert hass.states.get(season).state == "3"
+    assert hass.states.get(total).state == "41"
 
     assert await hass.config_entries.async_reload(entry.entry_id)
     await hass.async_block_till_done()
 
     assert hass.states.get(season).state == "3"
     assert hass.states.get(total).state == "41"
+    assert [
+        e for e in er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id) if e.domain == "number"
+    ] == []
+
+
+async def test_durations_are_reset_to_zero_and_other_values_stay(hass: HomeAssistant) -> None:
+    entry = await _setup(hass)
+    state = entry.runtime_data.states[FRANK]
+    state.seconds_season, state.seconds_total, state.longest_season = 3600.0, 7200.0, 600.0
+    entry.runtime_data.notify()
+
+    await entry.runtime_data.async_edit_statistics(FRANK, reset=["seconds_season", "longest_season"])
+    await hass.async_block_till_done()
+
+    duration_season = partner_entity(hass, entry, FRANK, "sensor", "duration_season")
+    duration_total = partner_entity(hass, entry, FRANK, "sensor", "duration_total")
+    longest = partner_entity(hass, entry, FRANK, "sensor", "longest_season")
+    assert float(hass.states.get(duration_season).state) == 0
+    assert float(hass.states.get(longest).state) == 0
+    assert float(hass.states.get(duration_total).state) == 2.0
+
+
+async def test_only_known_fields_can_be_edited(hass: HomeAssistant) -> None:
+    entry = await _setup(hass)
+
+    with pytest.raises(ValueError, match="last_seconds"):
+        await entry.runtime_data.async_edit_statistics(FRANK, {"season": 2}, reset=["last_seconds"])
+
+    assert entry.runtime_data.states[FRANK].season == 1  # nichts wurde halb geändert
+
+
+async def test_the_old_number_entities_of_the_counters_are_removed(hass: HomeAssistant) -> None:
+    entry = await _setup(hass)
+    registry = er.async_get(hass)
+    old = registry.async_get_or_create(
+        "number", DOMAIN, f"{entry.entry_id}_{FRANK}_season", config_entry=entry, config_subentry_id=FRANK
+    )
+
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert registry.async_get(old.entity_id) is None
 
 
 async def test_the_prepare_button(hass: HomeAssistant, service_calls) -> None:
     entry = await _setup(hass, options={"prepare": {"on": {"entity_id": ["switch.winde"]}}})
     entry.runtime_data.states[FRANK].season_start = (dt_util.now().date() - timedelta(days=1)).isoformat()
-    season = partner_entity(hass, entry, FRANK, "number", "season")
+    season = partner_entity(hass, entry, FRANK, "sensor", "season")
 
     await hass.services.async_call(
         "button", "press", {"entity_id": partner_entity(hass, entry, FRANK, "button", "prepare")}, blocking=True
@@ -171,7 +214,7 @@ async def test_the_end_season_button(hass: HomeAssistant, service_calls) -> None
         ("cover", "set_cover_position", {"entity_id": "cover.rollo", "position": 0}),
         ("homeassistant", "turn_off", {"entity_id": ["switch.winde"]}),
     ]
-    season = partner_entity(hass, entry, FRANK, "number", "season")
+    season = partner_entity(hass, entry, FRANK, "sensor", "season")
     assert hass.states.get(season).state == "1"  # beenden zählt die Saison nicht weiter
 
 

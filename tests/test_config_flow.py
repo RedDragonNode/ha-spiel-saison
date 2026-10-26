@@ -311,6 +311,80 @@ async def test_partner_reconfigure_keeps_own_name_and_number_and_renames_the_pla
     assert entry.subentries["o_Bett"].title == "Bett (Franky)"
 
 
+COUNTER_FIELDS = ["season", "recordings_season", "recordings_total"]
+RESET_FIELDS = ["reset_duration_season", "reset_duration_total", "reset_longest_season"]
+
+
+async def test_a_new_partner_has_no_counter_fields(hass: HomeAssistant) -> None:
+    entry = await setup_entry(hass, [make_partner("Frank", 1)])
+
+    flow = await _start_sub(hass, entry, "partner")
+
+    assert not {str(k) for k in flow["data_schema"].schema} & {*COUNTER_FIELDS, *RESET_FIELDS}
+
+
+async def test_partner_reconfigure_shows_the_counters_and_applies_only_what_was_edited(hass: HomeAssistant) -> None:
+    entry = await setup_entry(hass, [make_partner("Frank", 1)])
+    state = entry.runtime_data.states["p_Frank"]
+    state.season, state.count_season, state.count_total = 2, 4, 9
+
+    flow = await _start_sub(hass, entry, "partner", source="reconfigure", subentry_id="p_Frank")
+
+    shown = {str(k): k.description["suggested_value"] for k in flow["data_schema"].schema if k.description}
+    assert [f for f in (str(k) for k in flow["data_schema"].schema) if f in COUNTER_FIELDS + RESET_FIELDS] == [
+        *COUNTER_FIELDS,
+        *RESET_FIELDS,
+    ]
+    assert (shown["season"], shown["recordings_season"], shown["recordings_total"]) == (2, 4, 9)
+
+    entry.runtime_data.states["p_Frank"].count_season = 5  # eine Aufnahme endet, während der Dialog offen ist
+    result = await hass.config_entries.subentries.async_configure(
+        flow["flow_id"], {"name": "Frank", "number": 1, "season": 3, "recordings_season": 4, "recordings_total": 12}
+    )
+    await hass.async_block_till_done()
+
+    assert result["reason"] == "reconfigure_successful"
+    state = entry.runtime_data.states["p_Frank"]
+    assert (state.season, state.count_season, state.count_total) == (3, 5, 12)  # die 4 war nicht geändert
+    assert not {*COUNTER_FIELDS, *RESET_FIELDS} & set(entry.subentries["p_Frank"].data)  # nicht im Spielpartner
+
+
+async def test_partner_reconfigure_resets_the_chosen_durations_and_remembers_the_counters(hass: HomeAssistant) -> None:
+    entry = await setup_entry(hass, [make_partner("Frank", 1, lights=["light.a"])])
+    state = entry.runtime_data.states["p_Frank"]
+    state.seconds_season, state.seconds_total, state.longest_season = 3600.0, 7200.0, 600.0
+    flow = await _start_sub(hass, entry, "partner", source="reconfigure", subentry_id="p_Frank")
+
+    await hass.config_entries.subentries.async_configure(
+        flow["flow_id"],
+        {
+            "name": "Frank",
+            "number": 1,
+            "season": 5,
+            "reset_duration_season": True,
+            "reset_duration_total": False,
+            "reset_longest_season": True,
+        },
+    )
+    await hass.async_block_till_done()
+    await hass.config_entries.async_reload(entry.entry_id)  # die Werte müssen im Speicher stehen, nicht nur im Manager
+    await hass.async_block_till_done()
+
+    state = entry.runtime_data.states["p_Frank"]
+    assert (state.season, state.seconds_season, state.seconds_total, state.longest_season) == (5, 0.0, 7200.0, 0.0)
+
+
+async def test_partner_reconfigure_without_counter_input_changes_nothing(hass: HomeAssistant) -> None:
+    entry = await setup_entry(hass, [make_partner("Frank", 1)])
+    state = entry.runtime_data.states["p_Frank"]
+    state.season, state.seconds_total = 4, 7200.0
+    flow = await _start_sub(hass, entry, "partner", source="reconfigure", subentry_id="p_Frank")
+
+    await hass.config_entries.subentries.async_configure(flow["flow_id"], {"name": "Frank", "number": 1})
+
+    assert (state.season, state.seconds_total) == (4, 7200.0)
+
+
 # ------------------------------------------------------------------------ Orte
 def _shown(step: dict) -> dict:
     return {str(k): k.description["suggested_value"] for k in step["data_schema"].schema if k.description}

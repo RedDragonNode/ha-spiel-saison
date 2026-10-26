@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass, field, fields
 from datetime import date, datetime, time, timedelta
 from typing import Any
@@ -104,7 +105,8 @@ STATUS_IDLE = "idle"
 STATUS_RECORDING = "recording"
 STATUS_ERROR = "error"
 
-COUNTERS = ("season", "count_season", "count_total")  # von Hand änderbare Zähler
+COUNTERS = ("season", "count_season", "count_total")  # bei „Spielpartner bearbeiten“ änderbare Zähler
+RESETTABLE = ("seconds_season", "seconds_total", "longest_season")  # Dauern, die man dort auf null setzen kann
 
 
 @dataclass
@@ -539,11 +541,21 @@ class SpielSaisonManager:
         return busy
 
     # ------------------------------------------------------------- Zähler und Saison
-    async def async_set_counter(self, sid: str, counter: str, value: int) -> None:
-        """Zähler von Hand ändern (z. B. nach einer Aufnahme ohne Home Assistant)."""
-        if counter not in COUNTERS:
-            raise ValueError(counter)
-        setattr(self.states[sid], counter, int(value))
+    async def async_edit_statistics(
+        self, sid: str, counters: Mapping[str, int] | None = None, reset: Iterable[str] = ()
+    ) -> None:
+        """Zähler ändern (zum Beispiel nach einer Aufnahme ohne Home Assistant) und Dauern auf null setzen.
+
+        `counters` nennt die Felder aus `COUNTERS` mit ihrem neuen Wert, `reset` die Felder aus `RESETTABLE`.
+        """
+        state = self.states[sid]
+        counters, reset = dict(counters or {}), list(reset)
+        if unknown := [key for key in (*counters, *reset) if key not in (*COUNTERS, *RESETTABLE)]:
+            raise ValueError(unknown[0])
+        for counter, value in counters.items():
+            setattr(state, counter, int(value))
+        for attr in reset:
+            setattr(state, attr, 0.0)
         await self._save()
         self.notify()
 

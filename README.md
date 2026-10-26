@@ -53,6 +53,15 @@ Platzhalter in geschweiften Klammern: `{partner}` Name, `{nr}` Nummer des Spielp
 | **Eigene Vorlieben**, **Vorlieben zum Bearbeiten seines Partners** | zwei Felder, in die du eigene Einträge tippst (jeden mit Enter bestätigen). Alles, was du je eingegeben hast, steht bei jedem weiteren Spielpartner zur Wahl |
 | **Ansage** | eine `notify`-Entity (zum Beispiel ein Echo) mit je einem Text für den Start und das Ende einer Aufnahme. In den Texten gehen `{nickname}`, `{partner}`, `{nr}`, `{saison}` und `{ort}` |
 
+Beim **Bearbeiten** eines Spielpartners (beim Anlegen noch nicht) kommen unten die Zähler und das Zurücksetzen der Auswertung dazu:
+
+| Feld | Bedeutung |
+|---|---|
+| **Saison**, **Aufnahmen in Saison**, **Aufnahmen gesamt** | die Zähler, wie sie gerade stehen. Übernommen wird nur, was du änderst. Eine Aufnahme, die währenddessen zu Ende geht, bleibt gezählt |
+| **Aufnahmedauer in Saison auf null setzen**, **Aufnahmedauer gesamt auf null setzen**, **Längste Aufnahme in Saison auf null setzen** | Schalter, die beim Speichern die jeweilige Auswertung auf null setzen. Danach stehen sie wieder aus |
+
+Am Gerät des Spielpartners sind die Zähler Sensoren. Ändern lassen sie sich nur hier.
+
 Die Kameras gehören nicht zum Spielpartner, sondern zu seinen Orten. Nach einem Neustart von Home Assistant erkennt die Integration laufende Aufnahmen wieder.
 
 ### Vorlieben
@@ -139,7 +148,7 @@ Am Gerät **Spielpartner …**:
 | Taste **Saison beenden** | führt die Einstellungen von „Saison beenden“ aus (*Konfigurieren*, nicht während einer Aufnahme) und meldet das Ereignis `spiel_saison_season_ended` |
 | Taste **Beleuchtung speichern** | speichert die Beleuchtung der Lichter des Spielpartners, wie sie jetzt ist (an oder aus, Farbe, Helligkeit), für die erste Aufnahme jeder Saison |
 | Lichter, eines je Licht aus **Lichter** beim Spielpartner | Regler für die echte Lampe: zeigt ihren Zustand und gibt Ein/Aus, Helligkeit und Farbe an sie weiter |
-| Zahlen **Saison**, **Aufnahmen in Saison**, **Aufnahmen gesamt** | Zähler, von Hand änderbar |
+| Sensoren **Saison**, **Aufnahmen in Saison**, **Aufnahmen gesamt** | Zähler. Ändern kannst du sie nur bei *Spielpartner bearbeiten* |
 | Sensor **Status** | Bereit, Startet, Nimmt auf, Beendet. Attribute: Ort, Beginn, Aufnahmenummer, Kameras, `nickname`, `likes`, `treats` |
 | Sensoren **Aufnahmedauer in Saison / gesamt** (Stunden), **Längste Aufnahme in Saison** (Minuten), **Letzte Aufnahme** | Auswertung |
 | Sensor **Zielordner** | Ordner der laufenden oder nächsten Aufnahme, der volle Pfad steht im Attribut `path` |
@@ -172,7 +181,7 @@ Beendet der Recorder eine Aufnahme von sich aus (zum Beispiel weil der Speicher 
 
 ## Von „Spiel Saison aufnehmen“ umsteigen
 
-Zähler werden nicht übernommen, sie beginnen bei null. Setze sie bei Bedarf über die Zahlen am Gerät des Spielpartners. Automationen, die die alten Tasten und Entities benutzen, stellst du auf die Taste **Saison vorbereiten** (sie beginnt auch die Saison des Tages und legt ihren Ordner an), den Schalter **Aufnahme** des Spielpartners und die **Ort**-Auswahl an seinem Gerät um, danach kannst du die alte Integration und die alte App entfernen.
+Zähler werden nicht übernommen, sie beginnen bei null. Setze sie bei Bedarf bei *Spielpartner bearbeiten*. Automationen, die die alten Tasten und Entities benutzen, stellst du auf die Taste **Saison vorbereiten** (sie beginnt auch die Saison des Tages und legt ihren Ordner an), den Schalter **Aufnahme** des Spielpartners und die **Ort**-Auswahl an seinem Gerät um, danach kannst du die alte Integration und die alte App entfernen.
 
 ## Fehlersuche
 

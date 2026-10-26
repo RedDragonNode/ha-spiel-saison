@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
 from homeassistant.config_entries import (
     ConfigEntry,
+    ConfigEntryState,
     ConfigFlow,
     ConfigFlowResult,
     ConfigSubentryFlow,
@@ -59,6 +60,12 @@ from .const import (
     DEFAULT_RECORDER_URL,
     DEFAULT_SEASON_PATTERN,
     DOMAIN,
+    FIELD_RECORDINGS_SEASON,
+    FIELD_RECORDINGS_TOTAL,
+    FIELD_RESET_DURATION_SEASON,
+    FIELD_RESET_DURATION_TOTAL,
+    FIELD_RESET_LONGEST_SEASON,
+    FIELD_SEASON,
     LIGHT_BRIGHTNESS,
     LIGHT_RGB,
     OPT_FINISH,
@@ -77,9 +84,25 @@ from .const import (
 )
 from .recorder_client import RecorderAuthError, RecorderClient, RecorderError
 
+if TYPE_CHECKING:
+    from .manager import SpielSaisonManager
+
 _TEXT = selector.TextSelector()
 _SECRET = selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD))
 _TARGET = selector.TargetSelector()
+
+# Zähler, die man bei „Spielpartner bearbeiten“ ändert: Feld -> (Feld von PartnerState, kleinster, größter Wert)
+_COUNTER_FIELDS = {
+    FIELD_SEASON: ("season", 1, 99),
+    FIELD_RECORDINGS_SEASON: ("count_season", 0, 999),
+    FIELD_RECORDINGS_TOTAL: ("count_total", 0, 9999),
+}
+# Dauern, die man dort auf null setzen kann: Feld -> Feld von PartnerState
+_RESET_FIELDS = {
+    FIELD_RESET_DURATION_SEASON: "seconds_season",
+    FIELD_RESET_DURATION_TOTAL: "seconds_total",
+    FIELD_RESET_LONGEST_SEASON: "longest_season",
+}
 
 HUB_SCHEMA = vol.Schema(
     {
@@ -193,9 +216,35 @@ class SpielSaisonConfigFlow(ConfigFlow, domain=DOMAIN):
 
 # ----------------------------------------------------------------- Spielpartner
 class PartnerSubentryFlow(ConfigSubentryFlow):
-    """Spielpartner anlegen oder bearbeiten: Name, Nummer (für die Muster), Spitzname, Vorlieben und Ansage."""
+    """Spielpartner anlegen oder bearbeiten: Name, Nummer (für die Muster), Spitzname, Vorlieben und Ansage.
+
+    Beim Bearbeiten stehen dazu die Zähler (Saison, Aufnahmen) und das Zurücksetzen der Aufnahmedauern im Dialog.
+    """
 
     _own: str | None = None
+    _shown: dict[str, int] | None = None  # die Zähler, wie der Dialog sie zeigte (nur Änderungen daran gelten)
+
+    def _manager(self) -> SpielSaisonManager | None:
+        """Der Manager des Eintrags, wenn ein Spielpartner bearbeitet wird und der Eintrag geladen ist."""
+        entry = self._get_entry()
+        return entry.runtime_data if self._own and entry.state is ConfigEntryState.LOADED else None
+
+    def _counters(self, manager: SpielSaisonManager) -> dict[str, int]:
+        """Die Zähler dieses Spielpartners (Feld von PartnerState -> Wert)."""
+        state = manager.states[self._own or ""]
+        return {attr: getattr(state, attr) for attr, _low, _high in _COUNTER_FIELDS.values()}
+
+    async def _apply_statistics(self, manager: SpielSaisonManager, user_input: Mapping[str, Any]) -> None:
+        """Geänderte Zähler übernehmen und die angekreuzten Dauern auf null setzen."""
+        shown = self._shown or self._counters(manager)
+        changed = {
+            attr: int(user_input[field])
+            for field, (attr, _low, _high) in _COUNTER_FIELDS.items()
+            if user_input.get(field) is not None and int(user_input[field]) != shown[attr]
+        }
+        reset = [attr for field, attr in _RESET_FIELDS.items() if user_input.get(field)]
+        if changed or reset:
+            await manager.async_edit_statistics(self._own or "", changed, reset)
 
     def _others(self) -> list[Mapping[str, Any]]:
         return [
@@ -262,6 +311,8 @@ class PartnerSubentryFlow(ConfigSubentryFlow):
                 self._remember(data)
                 if self._own is None:
                     return self.async_create_entry(title=name, data=data, unique_id=unique_id)
+                if manager := self._manager():
+                    await self._apply_statistics(manager, user_input)
                 entry = self._get_entry()
                 if name != current.get(CONF_NAME):  # die Titel der Orte nennen den Spielpartner
                     for sub in entry.subentries.values():
@@ -296,8 +347,16 @@ class PartnerSubentryFlow(ConfigSubentryFlow):
         )
         fields[vol.Optional(CONF_ANNOUNCE_START)] = _TEXT
         fields[vol.Optional(CONF_ANNOUNCE_END)] = _TEXT
-        schema = vol.Schema(fields)
         suggested = user_input or {CONF_NUMBER: self._next_number(), **current}
+        if manager := self._manager():  # Zähler und Auswertung gibt es nur bei einem bestehenden Spielpartner
+            counters = self._counters(manager)
+            self._shown = self._shown or counters
+            for field, (attr, low, high) in _COUNTER_FIELDS.items():
+                fields[vol.Optional(field)] = _num(low, high)
+                suggested = {field: counters[attr], **suggested}
+            for field in _RESET_FIELDS:
+                fields[vol.Optional(field)] = selector.BooleanSelector()
+        schema = vol.Schema(fields)
         return self.async_show_form(
             step_id=step_id,
             data_schema=self.add_suggested_values_to_schema(schema, suggested),

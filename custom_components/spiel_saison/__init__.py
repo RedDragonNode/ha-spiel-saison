@@ -71,7 +71,6 @@ PLATFORMS = [
     Platform.SENSOR,
     Platform.BINARY_SENSOR,
     Platform.SWITCH,
-    Platform.NUMBER,
     Platform.SELECT,
     Platform.BUTTON,
     Platform.LIGHT,
@@ -273,7 +272,7 @@ def _move_cams_to_places(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 
 def _drop_stale_entities(hass: HomeAssistant, entry: ConfigEntry, manager: SpielSaisonManager) -> None:
-    """Entities gestrichener Vorlieben und Lichter sowie der entfernten Taste „Neue Saison“ aus der Registry nehmen."""
+    """Entities gestrichener Vorlieben und Lichter, der Zahlen für die Zähler und der Taste „Neue Saison“ entfernen."""
     wanted = {
         f"{entry.entry_id}_{sid}_{preference_unique_part(kind, name, role)}"
         for sid, partner in manager.partners.items()
@@ -289,6 +288,8 @@ def _drop_stale_entities(hass: HomeAssistant, entry: ConfigEntry, manager: Spiel
     for ent in er.async_entries_for_config_entry(registry, entry.entry_id):
         if ent.domain == Platform.LIGHT:  # nur die Regler sind Lichter, ihre ID enthält die echte Lampe
             stale = ent.unique_id not in wanted_lights
+        elif ent.domain == Platform.NUMBER:  # die Zähler sind Sensoren, geändert wird bei „Spielpartner bearbeiten“
+            stale = True
         else:
             stale = ("_pref_" in ent.unique_id and ent.unique_id not in wanted) or ent.unique_id.endswith(
                 "_new_season"  # die Taste „Neue Saison“ gibt es nicht mehr

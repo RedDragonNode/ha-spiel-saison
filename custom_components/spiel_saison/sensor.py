@@ -26,6 +26,9 @@ async def async_setup_entry(
         async_add_entities(
             [
                 PartnerStatusSensor(m, partner),
+                CounterSensor(m, partner, "season", "season"),
+                CounterSensor(m, partner, "recordings_season", "count_season"),
+                CounterSensor(m, partner, "recordings_total", "count_total"),
                 DurationSensor(m, partner, "duration_season", "seconds_season"),
                 DurationSensor(m, partner, "duration_total", "seconds_total"),
                 LongestSensor(m, partner),
@@ -145,6 +148,21 @@ class _StateSensor(PartnerEntity, SensorEntity):
     @property
     def _state(self) -> PartnerState:
         return self.manager.states[self.sid]
+
+
+class CounterSensor(_StateSensor):
+    """Saison, Aufnahmen in der Saison oder Aufnahmen insgesamt. Ändern kann man sie bei „Spielpartner bearbeiten“."""
+
+    _attr_icon = "mdi:counter"
+
+    def __init__(self, m: SpielSaisonManager, partner: PartnerCfg, key: str, attr: str) -> None:
+        super().__init__(m, partner, key)
+        self._attr_translation_key = key
+        self._attr = attr
+
+    @property
+    def native_value(self) -> int:
+        return getattr(self._state, self._attr)
 
 
 class DurationSensor(_StateSensor):
