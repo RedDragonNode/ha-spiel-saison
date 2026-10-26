@@ -20,7 +20,7 @@ from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from . import logic
-from .cams import cam_name, ctronics_presets, entity_title, preset_options
+from .cams import cam_name, ctronics_presets, entity_title, own_lights, preset_options
 from .const import (
     CONF_ANNOUNCE_END,
     CONF_ANNOUNCE_ENTITY,
@@ -287,7 +287,9 @@ class PartnerSubentryFlow(ConfigSubentryFlow):
                 )
             )
         fields[vol.Optional(CONF_PARTNER_LIGHTS)] = selector.EntitySelector(
-            selector.EntitySelectorConfig(domain="light", multiple=True)
+            selector.EntitySelectorConfig(
+                domain="light", multiple=True, exclude_entities=own_lights(self.hass, self._get_entry().entry_id)
+            )
         )
         fields[vol.Optional(CONF_ANNOUNCE_ENTITY)] = selector.EntitySelector(
             selector.EntitySelectorConfig(domain="notify")
@@ -566,7 +568,9 @@ class SeasonOptionsFlow(OptionsFlow):
             vol.Optional(STEP_OFF): _TARGET,
             vol.Optional(STEP_ON): _TARGET,
             vol.Optional(STEP_LIGHTS): selector.EntitySelector(
-                selector.EntitySelectorConfig(domain="light", multiple=True)
+                selector.EntitySelectorConfig(
+                    domain="light", multiple=True, exclude_entities=own_lights(self.hass, self.config_entry.entry_id)
+                )
             ),
             vol.Optional(STEP_COVER): selector.EntitySelector(selector.EntitySelectorConfig(domain="cover")),
             vol.Optional(STEP_COVER_POSITION): _num(0, 100, "%"),

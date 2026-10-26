@@ -57,6 +57,11 @@ def preference_unique_part(kind: str, name: str, role: str) -> str:
     return f"pref_{kind}_{logic.norm(name)}_{role}"
 
 
+def partner_light_unique_part(entity_id: str) -> str:
+    """Teil der eindeutigen ID des Reglers, der am Gerät des Spielpartners ein echtes Licht steuert."""
+    return f"plight_{entity_id.replace('.', '_')}"
+
+
 def hub_device(manager: SpielSaisonManager) -> DeviceInfo:
     return DeviceInfo(
         identifiers={(DOMAIN, manager.entry.entry_id)},

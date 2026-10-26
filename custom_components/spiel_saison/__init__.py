@@ -60,7 +60,7 @@ from .const import (
     SUBENTRY_PLACE,
     SUBENTRY_TREAT,
 )
-from .entity import preference_unique_part
+from .entity import partner_light_unique_part, preference_unique_part
 from .manager import SpielSaisonManager, counters_store
 
 _LOGGER = logging.getLogger(__name__)
@@ -74,6 +74,7 @@ PLATFORMS = [
     Platform.NUMBER,
     Platform.SELECT,
     Platform.BUTTON,
+    Platform.LIGHT,
 ]
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
@@ -272,17 +273,27 @@ def _move_cams_to_places(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 
 def _drop_stale_entities(hass: HomeAssistant, entry: ConfigEntry, manager: SpielSaisonManager) -> None:
-    """Entities gestrichener Vorlieben und der entfernten Taste „Neue Saison“ aus der Registry nehmen."""
+    """Entities gestrichener Vorlieben und Lichter sowie der entfernten Taste „Neue Saison“ aus der Registry nehmen."""
     wanted = {
         f"{entry.entry_id}_{sid}_{preference_unique_part(kind, name, role)}"
         for sid, partner in manager.partners.items()
         for kind, name, _key in manager.preferences(partner)
         for role in (("info", "count", "active") if kind in COUNTED_KINDS else ("info",))
     }
+    wanted_lights = {
+        f"{entry.entry_id}_{sid}_{partner_light_unique_part(target)}"
+        for sid, partner in manager.partners.items()
+        for target in partner.lights
+    }
     registry = er.async_get(hass)
     for ent in er.async_entries_for_config_entry(registry, entry.entry_id):
-        stale_preference = "_pref_" in ent.unique_id and ent.unique_id not in wanted
-        if stale_preference or ent.unique_id.endswith("_new_season"):  # die Taste „Neue Saison“ gibt es nicht mehr
+        if ent.domain == Platform.LIGHT:  # nur die Regler sind Lichter, ihre ID enthält die echte Lampe
+            stale = ent.unique_id not in wanted_lights
+        else:
+            stale = ("_pref_" in ent.unique_id and ent.unique_id not in wanted) or ent.unique_id.endswith(
+                "_new_season"  # die Taste „Neue Saison“ gibt es nicht mehr
+            )
+        if stale:
             registry.async_remove(ent.entity_id)
 
 

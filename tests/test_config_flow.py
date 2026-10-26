@@ -194,6 +194,25 @@ async def test_partner_announcement_is_optional(hass: HomeAssistant) -> None:
     }
 
 
+async def test_the_light_choices_leave_out_the_sliders_of_this_integration(hass: HomeAssistant) -> None:
+    hass.states.async_set("light.a", "on", {"supported_color_modes": ["onoff"]})
+    entry = await setup_entry(hass, [make_partner("Frank", 1, lights=["light.a"])])
+    sliders = [
+        e.entity_id
+        for e in er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
+        if e.domain == "light"
+    ]
+    assert len(sliders) == 1
+
+    partner = await _start_sub(hass, entry, "partner")
+    options = await hass.config_entries.options.async_init(entry.entry_id)
+
+    partner_lights = {str(k): v for k, v in partner["data_schema"].schema.items()}["lights"]
+    option_lights = {str(k): v for k, v in options["data_schema"].schema.items()}["lights"]
+    assert partner_lights.config["exclude_entities"] == sliders
+    assert option_lights.config["exclude_entities"] == sliders
+
+
 async def test_partner_flow_has_nickname_and_two_free_preference_fields(hass: HomeAssistant) -> None:
     entry = await setup_entry(
         hass,

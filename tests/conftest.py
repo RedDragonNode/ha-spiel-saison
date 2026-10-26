@@ -10,6 +10,7 @@ import pytest
 from homeassistant.config_entries import ConfigSubentryData
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import entity_registry as er
+from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.spiel_saison.const import DOMAIN
@@ -98,6 +99,7 @@ def fake_recorder() -> Generator[type[FakeRecorder]]:
 def no_light_delay(monkeypatch: pytest.MonkeyPatch) -> None:
     """Die Tests warten nicht, bis die Farbe der Lichter noch einmal geschickt wird."""
     monkeypatch.setattr("custom_components.spiel_saison.manager.LIGHT_COLOR_DELAY_S", 0)
+    monkeypatch.setattr("custom_components.spiel_saison.light.LIGHT_COLOR_DELAY_S", 0)
     monkeypatch.setattr("custom_components.spiel_saison.manager.END_SWITCH_GRACE_S", 0)
 
 
@@ -121,8 +123,12 @@ def bad_key() -> type[FakeRecorder]:
 
 
 @pytest.fixture
-def service_calls(hass: HomeAssistant) -> list[ServiceCall]:
-    """Fängt homeassistant.turn_on/turn_off, light.turn_on, notify.send_message, cover und ctronics_cam ab."""
+async def service_calls(hass: HomeAssistant) -> list[ServiceCall]:
+    """Fängt homeassistant.turn_on/turn_off, light.turn_on, notify.send_message, cover und ctronics_cam ab.
+
+    Die Lichtplattform von Home Assistant wird vorher eingerichtet, damit sie die Attrappen nicht überschreibt.
+    """
+    assert await async_setup_component(hass, "light", {})
     calls: list[ServiceCall] = []
 
     async def record(call: ServiceCall) -> None:

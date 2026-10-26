@@ -71,11 +71,13 @@ Fügst du beim Bearbeiten des Spielpartners eine Vorliebe hinzu, tauchen ihre En
 
 Jeder Spielpartner kann sich seine **Beleuchtung** einstellen und speichern lassen:
 
-1. Beim Spielpartner (*Bearbeiten*) wählst du unter **Lichter** die Lichter, die er einstellen darf.
-2. Der Spielpartner stellt diese Lichter in Home Assistant (oder in der Lampen-App) so ein, wie er es am liebsten mag: an oder aus, Farbe, Helligkeit.
-3. Am **Gerät des Spielpartners** drückt er die Taste **Beleuchtung speichern** (oder du rufst den Dienst `spiel_saison.save_lighting` auf). Gespeichert wird bei jedem seiner Lichter, ob es an ist, die Farbe und die Helligkeit.
+1. Beim Spielpartner (*Bearbeiten*) wählst du unter **Lichter** die Lichter, die der Spielpartner einstellen darf. Zu jedem dieser Lichter legt die Integration am **Gerät des Spielpartners** einen Regler an. Er heißt wie die Lampe, zeigt ihren Zustand (an oder aus, Helligkeit, Farbe oder Farbtemperatur) und gibt jede Einstellung an die echte Lampe weiter.
+2. Der Spielpartner stellt seine Lichter am Gerät so ein, wie es ihm am liebsten ist: an oder aus, Farbe, Helligkeit. Die echte Lampe lässt sich auch weiter in Home Assistant oder in der Lampen-App einstellen, der Regler folgt ihr.
+3. Am selben Gerät drückt er die Taste **Beleuchtung speichern** (oder du rufst den Dienst `spiel_saison.save_lighting` auf). Gespeichert wird bei jedem seiner Lichter, ob es an ist, die Farbe und die Helligkeit.
 
-Die Beleuchtung stellt sich **mit der ersten Aufnahme jeder Saison** wieder ein, nach „Aufnahme beginnen“ und bevor der Vorlauf läuft. Bei den weiteren Aufnahmen der Saison bleiben die Lichter, wie sie sind. Gespeichert ist sie, bis du die Taste wieder drückst. Lichter, die er nicht mehr einstellen darf, fallen beim Speichern des Spielpartners aus der gespeicherten Beleuchtung heraus. Bei Lampen, die ein Weiß melden (fast ohne Farbe), geht das Weiß als Farbtemperatur an die Lampe, wie bei „Saison vorbereiten“.
+Die Beleuchtung stellt sich **mit der ersten Aufnahme jeder Saison** wieder ein, nach „Aufnahme beginnen“ und bevor der Vorlauf läuft. Bei den weiteren Aufnahmen der Saison bleiben die Lichter, wie sie sind. Gespeichert ist sie, bis du die Taste wieder drückst. Lichter, die nicht mehr in der Liste stehen, verlieren ihren Regler und fallen aus der gespeicherten Beleuchtung heraus. Bei Lampen, die ein Weiß melden (fast ohne Farbe), geht das Weiß als Farbtemperatur an die Lampe, wie bei „Saison vorbereiten“.
+
+Schickt man Helligkeit und Farbe gleichzeitig an den Regler, geht erst die Helligkeit an die Lampe und nach kurzer Pause die Farbe, wie bei „Saison vorbereiten“. Die Regler der Integration selbst stehen in der Auswahl der Lichter nicht zur Wahl.
 
 ### Orte
 
@@ -136,6 +138,7 @@ Am Gerät **Spielpartner …**:
 | Taste **Saison vorbereiten** | beginnt die Saison des Tages (nur wenn es für heute noch keine gibt), legt den Ordner der Saison an, falls er fehlt, und führt die Einstellungen von „Saison vorbereiten“ aus (*Konfigurieren*) |
 | Taste **Saison beenden** | führt die Einstellungen von „Saison beenden“ aus (*Konfigurieren*, nicht während einer Aufnahme) und meldet das Ereignis `spiel_saison_season_ended` |
 | Taste **Beleuchtung speichern** | speichert die Beleuchtung der Lichter des Spielpartners, wie sie jetzt ist (an oder aus, Farbe, Helligkeit), für die erste Aufnahme jeder Saison |
+| Lichter, eines je Licht aus **Lichter** beim Spielpartner | Regler für die echte Lampe: zeigt ihren Zustand und gibt Ein/Aus, Helligkeit und Farbe an sie weiter |
 | Zahlen **Saison**, **Aufnahmen in Saison**, **Aufnahmen gesamt** | Zähler, von Hand änderbar |
 | Sensor **Status** | Bereit, Startet, Nimmt auf, Beendet. Attribute: Ort, Beginn, Aufnahmenummer, Kameras, `nickname`, `likes`, `treats` |
 | Sensoren **Aufnahmedauer in Saison / gesamt** (Stunden), **Längste Aufnahme in Saison** (Minuten), **Letzte Aufnahme** | Auswertung |

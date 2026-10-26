@@ -26,9 +26,26 @@ def cam_name(hass: HomeAssistant, entity_id: str) -> str:
 
 
 def entity_title(hass: HomeAssistant, entity_id: str) -> str:
-    """Anzeigename einer Entity (zum Beispiel eines Lichts): ihr Name im Zustand, sonst die Entity-ID."""
-    state = hass.states.get(entity_id)
-    return state.name if state and state.name else entity_id
+    """Anzeigename einer Entity (zum Beispiel eines Lichts): ihr Name im Zustand, sonst Registry, Gerät, Entity-ID.
+
+    Der Zustand fehlt, solange die Quelle noch nicht geladen ist, etwa direkt nach dem Start von Home Assistant.
+    """
+    if (state := hass.states.get(entity_id)) and state.name:
+        return state.name
+    if ent := er.async_get(hass).async_get(entity_id):
+        if name := ent.name or ent.original_name:
+            return name
+        if ent.device_id and (dev := dr.async_get(hass).async_get(ent.device_id)):
+            return dev.name_by_user or dev.name or entity_id
+    return entity_id
+
+
+def own_lights(hass: HomeAssistant, config_entry_id: str) -> list[str]:
+    """Die Regler, die diese Integration selbst als Lichter anlegt. Man wählt sie nicht als echtes Licht aus."""
+    registry = er.async_get(hass)
+    return [
+        ent.entity_id for ent in er.async_entries_for_config_entry(registry, config_entry_id) if ent.domain == "light"
+    ]
 
 
 def is_ctronics(hass: HomeAssistant, entity_id: str) -> bool:
