@@ -521,16 +521,20 @@ async def test_the_recording_start_leaves_the_winch_alone_without_a_winch(hass, 
     assert [c for c in service_calls if c.service == "set_cover_position"] == []
 
 
-async def test_the_colour_of_a_light_is_sent_a_second_time_once_the_light_is_on(hass, cams, service_calls) -> None:
+async def test_brightness_and_colour_go_in_two_commands_and_the_colour_comes_alone(hass, cams, service_calls) -> None:
     lights = {"light.a": {"rgb": [1, 2, 3], "brightness": 20}, "light.b": {"brightness": 70}}
     await _setup(hass, options={"finish": {"lights": lights}})
 
     await _end_season(hass)
 
     assert _summary(service_calls) == [
-        ("light", "turn_on", {"entity_id": "light.a", "brightness_pct": 20, "rgb_color": [1, 2, 3]}),
+        ("light", "turn_on", {"entity_id": "light.a", "brightness_pct": 20}),
         ("light", "turn_on", {"entity_id": "light.b", "brightness_pct": 70}),
-        ("light", "turn_on", {"entity_id": "light.a", "brightness_pct": 20, "rgb_color": [1, 2, 3]}),  # nur mit Farbe
+        (
+            "light",
+            "turn_on",
+            {"entity_id": "light.a", "rgb_color": [1, 2, 3]},
+        ),  # nur Lichter mit Farbe, ohne Helligkeit
     ]
 
 
@@ -625,9 +629,9 @@ async def test_end_season_runs_the_settings_of_the_end_page(hass, cams, service_
         ("cover", "set_cover_position", {"entity_id": "cover.rollo", "position": 100}),  # beim Beenden zuerst
         ("homeassistant", "turn_off", {"entity_id": ["switch.winde"]}),
         ("homeassistant", "turn_on", {"entity_id": ["light.zimmer"]}),
-        ("light", "turn_on", {"entity_id": "light.stehlampe", "brightness_pct": 40, "rgb_color": [255, 100, 0]}),
+        ("light", "turn_on", {"entity_id": "light.stehlampe", "brightness_pct": 40}),  # erst an, mit Helligkeit
         ("light", "turn_on", {"entity_id": "light.decke"}),  # ohne Farbe und Helligkeit: so, wie das Licht zuletzt war
-        ("light", "turn_on", {"entity_id": "light.stehlampe", "brightness_pct": 40, "rgb_color": [255, 100, 0]}),
+        ("light", "turn_on", {"entity_id": "light.stehlampe", "rgb_color": [255, 100, 0]}),  # dann die Farbe allein
     ]
     assert [e.data for e in events] == [{**result, "partner_id": FRANK, "nickname": "", "start": state.season_start}]
     assert state.season == 1 and state.count_season == 3  # beenden zählt nichts um
@@ -639,16 +643,23 @@ async def test_white_goes_to_the_lamp_as_a_colour_temperature_and_a_colour_as_a_
     lights = {
         "light.weiss": {"rgb": [169, 167, 167], "brightness": 50},  # Grau aus dem Farbwähler, Sättigung etwa 1 %
         "light.rot": {"rgb": [255, 24, 0], "brightness": 25},
+        "light.nur_farbe": {"rgb": [0, 0, 255]},  # ohne Helligkeit
     }
     await _setup(hass, options={"finish": {"lights": lights}})
 
     await _end_season(hass)
 
-    first, second, *again = _summary(service_calls)
-    assert first[2]["entity_id"] == "light.weiss" and "rgb_color" not in first[2]
-    assert first[2]["brightness_pct"] == 50 and 5000 <= first[2]["color_temp_kelvin"] <= 6500
-    assert second == ("light", "turn_on", {"entity_id": "light.rot", "brightness_pct": 25, "rgb_color": [255, 24, 0]})
-    assert again == [first, second]  # beide Lichter haben eine Farbe und bekommen sie noch einmal
+    data = [call[2] for call in _summary(service_calls)]
+    assert data[:3] == [
+        {"entity_id": "light.weiss", "brightness_pct": 50},
+        {"entity_id": "light.rot", "brightness_pct": 25},
+        {"entity_id": "light.nur_farbe"},  # ohne Helligkeit geht das Licht einfach an
+    ]
+    white, red, blue = data[3:]
+    assert white["entity_id"] == "light.weiss" and "rgb_color" not in white and "brightness_pct" not in white
+    assert 5000 <= white["color_temp_kelvin"] <= 6500
+    assert red == {"entity_id": "light.rot", "rgb_color": [255, 24, 0]}
+    assert blue == {"entity_id": "light.nur_farbe", "rgb_color": [0, 0, 255]}
 
 
 async def test_end_season_without_settings_still_ends_it(hass, cams, service_calls) -> None:

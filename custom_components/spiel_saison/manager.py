@@ -628,33 +628,34 @@ class SpielSaisonManager:
         return True
 
     @staticmethod
-    def _light_data(entity_id: str, look: dict[str, Any]) -> dict[str, Any]:
-        data: dict[str, Any] = {"entity_id": entity_id}
-        if LIGHT_BRIGHTNESS in look:
-            data["brightness_pct"] = int(look[LIGHT_BRIGHTNESS])
-        if LIGHT_RGB in look:
-            red, green, blue = (int(part) for part in look[LIGHT_RGB])
-            if max(red, green, blue) and color_util.color_RGB_to_hs(red, green, blue)[1] < WHITE_SATURATION:
-                # Weiß (fast ohne Farbe) bekommt die Lampe als Farbtemperatur, nicht als Farbton mit Sättigung nahe null
-                kelvin = color_util.color_xy_to_temperature(*color_util.color_RGB_to_xy(red, green, blue))
-                data["color_temp_kelvin"] = max(MIN_KELVIN, min(MAX_KELVIN, kelvin))
-            else:
-                data["rgb_color"] = [red, green, blue]
-        return data
+    def _light_color(look: dict[str, Any]) -> dict[str, Any]:
+        """Die Farbe eines Lichts als Dienstdaten: ein Weiß als Farbtemperatur, jede andere Farbe als `rgb_color`."""
+        if LIGHT_RGB not in look:
+            return {}
+        red, green, blue = (int(part) for part in look[LIGHT_RGB])
+        if max(red, green, blue) and color_util.color_RGB_to_hs(red, green, blue)[1] < WHITE_SATURATION:
+            # Weiß (fast ohne Farbe) bekommt die Lampe als Farbtemperatur, nicht als Farbton mit Sättigung nahe null
+            kelvin = color_util.color_xy_to_temperature(*color_util.color_RGB_to_xy(red, green, blue))
+            return {"color_temp_kelvin": max(MIN_KELVIN, min(MAX_KELVIN, kelvin))}
+        return {"rgb_color": [red, green, blue]}
 
     async def _lights_on(self, lights: dict[str, dict[str, Any]]) -> None:
-        """Lichter mit ihrer Farbe und Helligkeit einschalten.
+        """Lichter einschalten, erst mit der Helligkeit, dann folgt die Farbe allein.
 
-        Manche Lampen (zum Beispiel Matter-Lampen) übernehmen die Farbe nicht, wenn sie mit demselben Befehl angehen,
-        und leuchten in ihrer letzten Farbe. Darum folgt die Farbe nach kurzer Zeit noch einmal, wenn die Lampe an ist.
+        Ein Befehl mit Helligkeit und Farbe zugleich lässt Matter-Lampen (H600D) in ihrer letzten Farbe leuchten, auch
+        wenn sie die neue Farbe melden. Die Farbe allein, so wie die Farbwahl in Home Assistant sie schickt, nehmen sie
+        an. Darum geht zuerst das Licht an (mit Helligkeit), und nach kurzer Zeit kommt die Farbe als eigener Befehl.
         """
         for entity_id, look in lights.items():
-            await self._call("light", "turn_on", self._light_data(entity_id, look))
-        coloured = {entity_id: look for entity_id, look in lights.items() if LIGHT_RGB in look}  # auch Weiß
+            data: dict[str, Any] = {"entity_id": entity_id}
+            if LIGHT_BRIGHTNESS in look:
+                data["brightness_pct"] = int(look[LIGHT_BRIGHTNESS])
+            await self._call("light", "turn_on", data)
+        coloured = {entity_id: self._light_color(look) for entity_id, look in lights.items() if LIGHT_RGB in look}
         if coloured:
             await asyncio.sleep(LIGHT_COLOR_DELAY_S)
-            for entity_id, look in coloured.items():
-                await self._call("light", "turn_on", self._light_data(entity_id, look))
+            for entity_id, color in coloured.items():
+                await self._call("light", "turn_on", {"entity_id": entity_id, **color})
 
     async def _stage_season(self, p: PartnerCfg, step: SeasonStep, *, cover_first: bool = False) -> None:
         """„Saison vorbereiten“ oder „Saison beenden“: ausschalten, einschalten, Lichter mit Farbe, Rollo oder Winde.
