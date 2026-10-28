@@ -25,7 +25,7 @@ from homeassistant.util import color as color_util
 from homeassistant.util import dt as dt_util
 
 from . import logic
-from .cams import cam_name, is_ctronics
+from .cams import cam_name, cam_prefix, is_ctronics
 from .const import (
     CONF_ANNOUNCE_END,
     CONF_ANNOUNCE_ENTITY,
@@ -414,6 +414,10 @@ class SpielSaisonManager:
 
     def cam_name(self, entity_id: str) -> str:
         return cam_name(self.hass, entity_id)
+
+    def cam_prefix(self, entity_id: str) -> str:
+        """Was bei {cam} im Dateinamen steht (Präfix der Kamera, sonst ihr Name)."""
+        return cam_prefix(self.hass, entity_id)
 
     def partner(self, ref: str) -> PartnerCfg:
         if ref in self.partners:
@@ -972,7 +976,7 @@ class SpielSaisonManager:
             names = logic.unique_names(
                 [self.cam_name(eid) for eid, _ in ready], [eid.split(".", 1)[1] for eid, _ in ready]
             )
-            folder, session, stems = self._plan(p, place, now, names)
+            folder, session, stems = self._plan(p, place, now, [self.cam_prefix(eid) for eid, _ in ready])
             cams = [
                 {"id": eid, "name": name, "url": url, "stem": stem}
                 for (eid, url), name, stem in zip(ready, names, stems, strict=True)
@@ -1028,16 +1032,20 @@ class SpielSaisonManager:
         ]
 
     def _plan(
-        self, p: PartnerCfg, place: PlaceCfg | None, now: datetime, names: list[str]
+        self, p: PartnerCfg, place: PlaceCfg | None, now: datetime, prefixes: list[str]
     ) -> tuple[list[str], str, list[str]]:
-        """Zielordner, Sitzungsname und Dateinamen der Kameras für die nächste Aufnahme."""
+        """Zielordner, Sitzungsname und Dateinamen der Kameras für die nächste Aufnahme.
+
+        `prefixes` sind die Präfixe der Kameras in ihrer Reihenfolge, sie stehen bei {cam} im Dateinamen. Gleiche
+        Dateinamen macht `unique_stems` eindeutig.
+        """
         values = self._pattern_values(p, place)
         folder = self._season_folder(p, place, now)
         file_pattern = self._data(CONF_FILE_PATTERN, DEFAULT_FILE_PATTERN)
         stems = logic.unique_stems(
             [
-                logic.render_pattern(file_pattern, now, {**values, "cam": name, "cam_nr": logic.pad(index)})
-                for index, name in enumerate(names, start=1)
+                logic.render_pattern(file_pattern, now, {**values, "cam": prefix, "cam_nr": logic.pad(index)})
+                for index, prefix in enumerate(prefixes, start=1)
             ]
         )
         session = f"{p.name} Saison {values['saison']} Aufnahme {values['aufnahme']}"
@@ -1050,8 +1058,8 @@ class SpielSaisonManager:
             return list(run["folder"])
         p = self.partners[sid]
         place = self.place(sid, None)
-        names = [self.cam_name(eid) for eid in place.cams] if place else []
-        return self._plan(p, place, dt_util.now(), names or ["Cam"])[0]
+        prefixes = [self.cam_prefix(eid) for eid in place.cams] if place else []
+        return self._plan(p, place, dt_util.now(), prefixes or ["Cam"])[0]
 
     async def _start_sequence(
         self,

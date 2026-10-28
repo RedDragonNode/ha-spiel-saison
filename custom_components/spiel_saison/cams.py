@@ -8,7 +8,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.selector import SelectOptionDict
 
 from . import logic
-from .const import CTRONICS_DOMAIN, CTRONICS_PRESETS_OPTION, MAX_PTZ_PRESET
+from .const import CTRONICS_DOMAIN, CTRONICS_PREFIX_OPTION, CTRONICS_PRESETS_OPTION, MAX_PTZ_PRESET
 
 NO_MOVE = "0"  # Wert der Auswahl „nicht bewegen“
 
@@ -23,6 +23,20 @@ def cam_name(hass: HomeAssistant, entity_id: str) -> str:
     if (state := hass.states.get(entity_id)) and state.name:
         return state.name
     return (ent.name or ent.original_name) if ent and (ent.name or ent.original_name) else entity_id
+
+
+def cam_prefix(hass: HomeAssistant, entity_id: str) -> str:
+    """Das Präfix einer Kamera für Dateinamen: bei Ctronics 4K Cam das beim Hinzufügen eingetragene, sonst ihr Name.
+
+    Kameras ohne Präfix sind zum Beispiel die anderer Integrationen und Ctronics-Kameras, die vor dem Präfix
+    eingerichtet wurden.
+    """
+    ent = er.async_get(hass).async_get(entity_id)
+    if ent and ent.platform == CTRONICS_DOMAIN and ent.config_entry_id:
+        ctronics = hass.config_entries.async_get_entry(ent.config_entry_id)
+        if ctronics and (prefix := str(ctronics.options.get(CTRONICS_PREFIX_OPTION) or "").strip()):
+            return prefix
+    return cam_name(hass, entity_id)
 
 
 def entity_title(hass: HomeAssistant, entity_id: str) -> str:

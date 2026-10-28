@@ -99,6 +99,7 @@ LIGHT_KELVIN = "kelvin"  # nur bei der Beleuchtung eines Spielpartners: Weiß al
 
 CTRONICS_DOMAIN = "ctronics_cam"  # nur diese Kameras fahren eine PTZ-Position an
 CTRONICS_PRESETS_OPTION = "presets"  # Option der Ctronics-Integration: Zeilen wie "1: Schaukel"
+CTRONICS_PREFIX_OPTION = "prefix"  # Option der Ctronics-Integration: das Präfix, das man beim Hinzufügen einträgt
 MAX_PTZ_PRESET = 64  # so viele Positionen kann eine Ctronics-Kamera speichern
 
 STORAGE_VERSION = 1

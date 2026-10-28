@@ -11,7 +11,7 @@ from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.util import dt as dt_util
-from pytest_homeassistant_custom_component.common import async_capture_events, async_fire_time_changed
+from pytest_homeassistant_custom_component.common import MockConfigEntry, async_capture_events, async_fire_time_changed
 
 from custom_components.spiel_saison.const import (
     DOMAIN,
@@ -126,7 +126,7 @@ async def test_start_runs_the_steps_in_order_and_records(hass, stream, cams, ser
     action, path, cams_sent, session, profile = call
     assert action == "start"
     assert path == ["Spielen", "Spielen mit Frank #02", f"Saison 01 vom {dt_util.now():%d,%m,%Y}"]
-    assert [c["stem"] for c in cams_sent] == [  # bei „Cam ID“ steht der Name der Kamera, nicht die Nummer
+    assert [c["stem"] for c in cams_sent] == [  # bei „Cam ID“ steht der Name der Kamera (ohne Präfix), nicht die Nummer
         f"#02.01.01.Cam ID.Fuchs {dt_util.now():%d.%m.%Y}",
         f"#02.01.01.Cam ID.Hase {dt_util.now():%d.%m.%Y}",
     ]
@@ -139,6 +139,56 @@ async def test_start_runs_the_steps_in_order_and_records(hass, stream, cams, ser
     assert (state.count_season, state.count_total) == (1, 1)
     (event,) = started
     assert event.data["partner"] == "Frank" and event.data["place"] == "Bett" and event.data["recording"] == 1
+
+
+def _ctronics_cam(hass, registry, name: str, options: dict) -> None:
+    """Eine Kamera der Integration Ctronics 4K Cam mit ihrem Eintrag (die Optionen tragen das Präfix).
+
+    Vor `add_cameras` aufrufen, sonst vergibt die Registry für die Entity-ID ein „_2“.
+    """
+    ctronics = MockConfigEntry(domain="ctronics_cam", title=name, options=options)
+    ctronics.add_to_hass(hass)
+    registry.async_get_or_create(
+        "camera", "ctronics_cam", f"uid_{name}", suggested_object_id=name, config_entry=ctronics
+    )
+
+
+async def test_the_file_names_carry_the_prefix_of_the_camera_not_its_name(hass, stream, entity_registry) -> None:
+    _ctronics_cam(hass, entity_registry, "fuchs", {"prefix": " #1 "})
+    _ctronics_cam(hass, entity_registry, "hase", {"ptz_step_ms": 400})  # eingerichtet, bevor es Präfixe gab
+    add_cameras(hass, "fuchs", "hase", "reh")
+    await setup_entry(
+        hass,
+        [make_partner("Frank", 2)],
+        [make_place("Bett", cams=("camera.fuchs", "camera.hase", "camera.reh"))],  # reh: keine Ctronics-Kamera
+    )
+
+    await _start(hass)
+
+    (_, _, cams_sent, *_rest) = FakeRecorder.calls[-1]
+    today = f"{dt_util.now():%d.%m.%Y}"
+    assert [c["stem"] for c in cams_sent] == [
+        f"#02.01.01.Cam ID.#1 {today}",  # das Präfix der Ctronics-Kamera
+        f"#02.01.01.Cam ID.Hase {today}",  # ohne Präfix gilt der Name
+        f"#02.01.01.Cam ID.Reh {today}",
+    ]
+    assert [c["name"] for c in cams_sent] == ["Fuchs", "Hase", "Reh"]  # die App zeigt weiter die Namen
+
+
+async def test_cameras_with_the_same_prefix_get_different_file_names(hass, stream, entity_registry) -> None:
+    _ctronics_cam(hass, entity_registry, "fuchs", {"prefix": "Spielzimmer"})
+    _ctronics_cam(hass, entity_registry, "hase", {"prefix": "spielzimmer"})
+    add_cameras(hass, "fuchs", "hase")
+    await setup_entry(hass, [make_partner("Frank", 2)], [make_place("Bett")])
+
+    await _start(hass)
+
+    (_, _, cams_sent, *_rest) = FakeRecorder.calls[-1]
+    today = f"{dt_util.now():%d.%m.%Y}"
+    assert [c["stem"] for c in cams_sent] == [
+        f"#02.01.01.Cam ID.Spielzimmer {today}",
+        f"#02.01.01.Cam ID.spielzimmer {today} Cam 02",
+    ]
 
 
 async def test_start_moves_ctronics_cameras_to_the_preset(hass, stream, service_calls, entity_registry) -> None:
