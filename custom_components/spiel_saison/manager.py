@@ -1104,6 +1104,9 @@ class SpielSaisonManager:
                 "place": place.name,
                 "folder": "/".join(run["folder"]),
                 "cams": run["cams"],
+                "session": run["session"],
+                # Dateiname ohne Endung je Kamera. Die Stream-Adresse bleibt draußen, sie kann Zugangsdaten tragen.
+                "files": [{"cam": cam["id"], "name": cam["stem"]} for cam in cams],
             },
         )
         ir.async_delete_issue(self.hass, DOMAIN, f"recording_lost_{sid}")

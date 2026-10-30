@@ -141,6 +141,23 @@ async def test_start_runs_the_steps_in_order_and_records(hass, stream, cams, ser
     assert event.data["partner"] == "Frank" and event.data["place"] == "Bett" and event.data["recording"] == 1
 
 
+async def test_the_start_event_names_the_session_and_the_files_but_hides_the_stream_urls(hass, stream, cams) -> None:
+    await _setup(hass, [make_place("Bett")])
+    started = async_capture_events(hass, EVENT_STARTED)
+
+    await _start(hass)
+
+    (event,) = started
+    today = f"{dt_util.now():%d.%m.%Y}"
+    assert event.data["cams"] == ["camera.fuchs", "camera.hase"]  # bleibt wie bisher
+    assert event.data["session"] == "Frank Saison 01 Aufnahme 01"
+    assert event.data["files"] == [  # Dateiname ohne Endung, die App hängt .mp4 oder .mkv an
+        {"cam": "camera.fuchs", "name": f"#02.01.01.Cam ID.Fuchs {today}"},
+        {"cam": "camera.hase", "name": f"#02.01.01.Cam ID.Hase {today}"},
+    ]
+    assert stream.return_value not in str(event.data)  # die Adresse kann Zugangsdaten enthalten
+
+
 def _ctronics_cam(hass, registry, name: str, options: dict) -> None:
     """Eine Kamera der Integration Ctronics 4K Cam mit ihrem Eintrag (die Optionen tragen das Präfix).
 

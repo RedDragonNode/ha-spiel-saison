@@ -172,10 +172,12 @@ Ereignisse für eigene Automationen (zum Beispiel Benachrichtigungen):
 
 | Ereignis | Daten |
 |---|---|
-| `spiel_saison_recording_started` | `partner`, `nickname`, `partner_id`, `season`, `recording`, `place`, `folder`, `cams` |
+| `spiel_saison_recording_started` | `partner`, `nickname`, `partner_id`, `season`, `recording`, `place`, `folder`, `cams`, `session`, `files` |
 | `spiel_saison_recording_stopped` | `partner`, `nickname`, `partner_id`, `season`, `recording`, `place`, `reason` (`manual`, `cancelled`, vom Recorder gemeldeter Grund), `duration_s` |
 | `spiel_saison_season_started` | `partner`, `partner_id`, `season`, `start` |
 | `spiel_saison_season_ended` | `partner`, `nickname`, `partner_id`, `season`, `start`, `recordings`, `seconds` |
+
+Beim Start-Ereignis ist `cams` die Liste der Kamera-Entity-IDs, die aufnehmen, `session` der Name der Sitzung (zum Beispiel `Frank Saison 03 Aufnahme 07`) und `files` die Liste der Dateien, eine je Kamera: `[{"cam": "camera.fuchsauge", "name": "#02.03.07.Cam ID.#1 28.10.2026"}]`. `name` ist der Dateiname **ohne Endung**. Die App hängt je nach ihrer Einstellung `container` `.mp4` (Standard) oder `.mkv` an, nach einem Neustart der Aufnahme einer Kamera kommt ` Teil 2` dazu, und unzulässige Zeichen ersetzt die App durch `_`. Die Stream-Adressen stehen nicht im Ereignis, weil sie Zugangsdaten enthalten können.
 
 Beendet der Recorder eine Aufnahme von sich aus (zum Beispiel weil der Speicher voll ist), räumt die Integration auf, sendet das Stopp-Ereignis und legt unter *Einstellungen → System → Reparaturen* einen Hinweis an.
 
