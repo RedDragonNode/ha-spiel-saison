@@ -9,6 +9,7 @@ from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.spiel_saison import logic
 from custom_components.spiel_saison.const import (
     DEFAULT_BASE_FOLDER,
     DEFAULT_FILE_PATTERN,
@@ -16,9 +17,10 @@ from custom_components.spiel_saison.const import (
     DEFAULT_SEASON_PATTERN,
     DOMAIN,
 )
+from custom_components.spiel_saison.entity import preference_unique_part
 from custom_components.spiel_saison.recorder_client import RecorderAuthError
 
-from .conftest import KEY, URL, FakeRecorder, add_cameras, make_partner, make_place, setup_entry
+from .conftest import KEY, URL, FakeRecorder, add_cameras, make_partner, make_place, partner_entity, setup_entry
 
 
 async def _start_user_flow(hass: HomeAssistant) -> dict:
@@ -372,6 +374,37 @@ async def test_partner_reconfigure_resets_the_chosen_durations_and_remembers_the
 
     state = entry.runtime_data.states["p_Frank"]
     assert (state.season, state.seconds_season, state.seconds_total, state.longest_season) == (5, 0.0, 7200.0, 0.0)
+
+
+async def test_partner_reconfigure_resets_the_counter_of_a_chosen_preference_only(hass: HomeAssistant) -> None:
+    partner = make_partner("Frank", 1, likes=["Seil"], treats=["Feder", "Kette"])
+    entry = await setup_entry(hass, [partner])
+    feder, kette = (logic.preference_key("treat", name) for name in ("Feder", "Kette"))
+    entry.runtime_data.states["p_Frank"].pref_counts = {feder: 3, kette: 2}
+    flow = await _start_sub(hass, entry, "partner", source="reconfigure", subentry_id="p_Frank")
+
+    labels = [str(k) for k in flow["data_schema"].schema if "counter to zero" in str(k)]
+    assert labels == ["Set Feder counter to zero", "Set Kette counter to zero"]  # die eigene Vorliebe Seil hat keinen
+    result = await hass.config_entries.subentries.async_configure(
+        flow["flow_id"],
+        {
+            "name": "Frank",
+            "number": 1,
+            "likes": ["Seil"],
+            "treats": ["Feder", "Kette"],
+            "Set Feder counter to zero": True,
+            "Set Kette counter to zero": False,
+        },
+    )
+    await hass.async_block_till_done()
+
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.runtime_data.states["p_Frank"].pref_counts == {kette: 2}
+    sensors = {
+        name: partner_entity(hass, entry, "p_Frank", "sensor", preference_unique_part("treat", name, "count"))
+        for name in ("Feder", "Kette")
+    }
+    assert [hass.states.get(sensors[name]).state for name in ("Feder", "Kette")] == ["0", "2"]
 
 
 async def test_partner_reconfigure_without_counter_input_changes_nothing(hass: HomeAssistant) -> None:

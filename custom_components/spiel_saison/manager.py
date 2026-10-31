@@ -551,20 +551,27 @@ class SpielSaisonManager:
 
     # ------------------------------------------------------------- Zähler und Saison
     async def async_edit_statistics(
-        self, sid: str, counters: Mapping[str, int] | None = None, reset: Iterable[str] = ()
+        self,
+        sid: str,
+        counters: Mapping[str, int] | None = None,
+        reset: Iterable[str] = (),
+        reset_preferences: Iterable[str] = (),
     ) -> None:
         """Zähler ändern (zum Beispiel nach einer Aufnahme ohne Home Assistant) und Dauern auf null setzen.
 
-        `counters` nennt die Felder aus `COUNTERS` mit ihrem neuen Wert, `reset` die Felder aus `RESETTABLE`.
+        `counters` nennt die Felder aus `COUNTERS` mit ihrem neuen Wert, `reset` die Felder aus `RESETTABLE`,
+        `reset_preferences` die Schlüssel der Vorlieben, deren Zähler auf null gehen.
         """
         state = self.states[sid]
-        counters, reset = dict(counters or {}), list(reset)
+        counters, reset, reset_preferences = dict(counters or {}), list(reset), list(reset_preferences)
         if unknown := [key for key in (*counters, *reset) if key not in (*COUNTERS, *RESETTABLE)]:
             raise ValueError(unknown[0])
         for counter, value in counters.items():
             setattr(state, counter, int(value))
         for attr in reset:
             setattr(state, attr, 0.0)
+        for key in reset_preferences:
+            state.pref_counts.pop(key, None)  # ohne Eintrag zählt der Sensor 0
         await self._save()
         self.notify()
 

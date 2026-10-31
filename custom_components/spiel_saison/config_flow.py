@@ -49,6 +49,7 @@ from .const import (
     CONF_START_ON,
     CONF_TREAT_CATALOG,
     CONF_TREATS,
+    COUNTED_KINDS,
     DEFAULT_BASE_FOLDER,
     DEFAULT_COVER_POSITION,
     DEFAULT_END_SECONDS,
@@ -234,8 +235,21 @@ class PartnerSubentryFlow(ConfigSubentryFlow):
         state = manager.states[self._own or ""]
         return {attr: getattr(state, attr) for attr, _low, _high in _COUNTER_FIELDS.values()}
 
+    def _preference_resets(self, manager: SpielSaisonManager) -> dict[str, str]:
+        """Die Schalter „Zähler auf null“ je Vorliebe mit Zähler: Beschriftung des Feldes -> Schlüssel der Vorliebe.
+
+        Die Namen der Vorlieben sind frei gewählt, darum ist die Beschriftung der Schlüssel des Feldes selbst und keine
+        Übersetzung.
+        """
+        german = self.hass.config.language.startswith("de")
+        return {
+            (f"{name} Zähler auf null setzen" if german else f"Set {name} counter to zero"): key
+            for kind, name, key in manager.preferences(manager.partners[self._own or ""])
+            if kind in COUNTED_KINDS
+        }
+
     async def _apply_statistics(self, manager: SpielSaisonManager, user_input: Mapping[str, Any]) -> None:
-        """Geänderte Zähler übernehmen und die angekreuzten Dauern auf null setzen."""
+        """Geänderte Zähler übernehmen und die angekreuzten Dauern und Zähler der Vorlieben auf null setzen."""
         shown = self._shown or self._counters(manager)
         changed = {
             attr: int(user_input[field])
@@ -243,8 +257,9 @@ class PartnerSubentryFlow(ConfigSubentryFlow):
             if user_input.get(field) is not None and int(user_input[field]) != shown[attr]
         }
         reset = [attr for field, attr in _RESET_FIELDS.items() if user_input.get(field)]
-        if changed or reset:
-            await manager.async_edit_statistics(self._own or "", changed, reset)
+        reset_preferences = [key for label, key in self._preference_resets(manager).items() if user_input.get(label)]
+        if changed or reset or reset_preferences:
+            await manager.async_edit_statistics(self._own or "", changed, reset, reset_preferences)
 
     def _others(self) -> list[Mapping[str, Any]]:
         return [
@@ -308,11 +323,11 @@ class PartnerSubentryFlow(ConfigSubentryFlow):
                 if user_input.get(CONF_ANNOUNCE_ENTITY):
                     data[CONF_ANNOUNCE_ENTITY] = user_input[CONF_ANNOUNCE_ENTITY]
                 unique_id = logic.norm(name)
+                if manager := self._manager():  # vor dem Merken der Vorlieben, das den Eintrag neu laden kann
+                    await self._apply_statistics(manager, user_input)
                 self._remember(data)
                 if self._own is None:
                     return self.async_create_entry(title=name, data=data, unique_id=unique_id)
-                if manager := self._manager():
-                    await self._apply_statistics(manager, user_input)
                 entry = self._get_entry()
                 if name != current.get(CONF_NAME):  # die Titel der Orte nennen den Spielpartner
                     for sub in entry.subentries.values():
@@ -356,6 +371,8 @@ class PartnerSubentryFlow(ConfigSubentryFlow):
                 suggested = {field: counters[attr], **suggested}
             for field in _RESET_FIELDS:
                 fields[vol.Optional(field)] = selector.BooleanSelector()
+            for label in self._preference_resets(manager):
+                fields[vol.Optional(label)] = selector.BooleanSelector()
         schema = vol.Schema(fields)
         return self.async_show_form(
             step_id=step_id,

@@ -59,6 +59,7 @@ Beim **Bearbeiten** eines Spielpartners (beim Anlegen noch nicht) kommen unten d
 |---|---|
 | **Saison**, **Aufnahmen in Saison**, **Aufnahmen gesamt** | die Zähler, wie sie gerade stehen. Übernommen wird nur, was du änderst. Eine Aufnahme, die währenddessen zu Ende geht, bleibt gezählt |
 | **Aufnahmedauer in Saison auf null setzen**, **Aufnahmedauer gesamt auf null setzen**, **Längste Aufnahme in Saison auf null setzen** | Schalter, die beim Speichern die jeweilige Auswertung auf null setzen. Danach stehen sie wieder aus |
+| **… Zähler auf null setzen**, ein Schalter je Vorliebe zum Bearbeiten (zum Beispiel „Fisten Zähler auf null setzen“) | setzt beim Speichern den Zähler dieser Vorlieben auf null. Der Schalter „dabei“ bleibt, wie er ist |
 
 Am Gerät des Spielpartners sind die Zähler Sensoren. Ändern lassen sie sich nur hier.
 
