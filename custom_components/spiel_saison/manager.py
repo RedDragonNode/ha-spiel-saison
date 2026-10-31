@@ -1011,21 +1011,25 @@ class SpielSaisonManager:
             "folder": "/".join(folder),
         }
 
-    def _pattern_values(self, p: PartnerCfg, place: PlaceCfg | None) -> dict[str, str]:
-        """Werte für die Platzhalter der Ordner- und Dateimuster."""
+    def _pattern_values(self, p: PartnerCfg, place: PlaceCfg | None, videos: int = 1) -> dict[str, str]:
+        """Werte für die Platzhalter der Ordner- und Dateimuster.
+
+        `videos` ist die Zahl der Kameras des Starts: {gesamt} ist der Stand von „Aufnahmen gesamt“, wie ihn der Sensor
+        nach dem Start zeigt, {aufnahme} der Stand von „Aufnahmen in Saison“ danach.
+        """
         st = self.states[p.subentry_id]
         return {
             "partner": p.name,
             "nr": logic.pad(p.number),
             "saison": logic.pad(st.season),
             "aufnahme": logic.pad(st.count_season + 1),
-            "gesamt": logic.pad(st.count_total + 1),
+            "gesamt": logic.pad(st.count_total + videos),
             "ort": place.name if place else "",
         }
 
-    def _season_folder(self, p: PartnerCfg, place: PlaceCfg | None, now: datetime) -> list[str]:
+    def _season_folder(self, p: PartnerCfg, place: PlaceCfg | None, now: datetime, videos: int = 1) -> list[str]:
         """Ordner der aktuellen Saison: Basis-Ordner, Ordner des Spielpartners, Ordner der Saison."""
-        values = self._pattern_values(p, place)
+        values = self._pattern_values(p, place, videos)
         season_day = datetime.combine(date.fromisoformat(self.states[p.subentry_id].season_start), time())
         return [
             *logic.split_path(self._data(CONF_BASE_FOLDER, DEFAULT_BASE_FOLDER)),
@@ -1043,10 +1047,11 @@ class SpielSaisonManager:
         """Zielordner, Sitzungsname und Dateinamen der Kameras für die nächste Aufnahme.
 
         `prefixes` sind die Präfixe der Kameras in ihrer Reihenfolge, sie stehen bei {cam} im Dateinamen. Gleiche
-        Dateinamen macht `unique_stems` eindeutig.
+        Dateinamen macht `unique_stems` eindeutig. Ihre Zahl ist die Zahl der Videos des Starts für {gesamt}.
         """
-        values = self._pattern_values(p, place)
-        folder = self._season_folder(p, place, now)
+        videos = max(1, len(prefixes))
+        values = self._pattern_values(p, place, videos)
+        folder = self._season_folder(p, place, now, videos)
         file_pattern = self._data(CONF_FILE_PATTERN, DEFAULT_FILE_PATTERN)
         stems = logic.unique_stems(
             [

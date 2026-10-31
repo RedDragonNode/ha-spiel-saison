@@ -174,8 +174,8 @@ async def test_the_total_count_goes_into_the_file_name_and_counts_on_with_each_r
 
     stems = [[c["stem"] for c in call[2]] for call in FakeRecorder.calls if call[0] == "start"]
     assert stems == [
-        ["#02.01.01.Fuchs.05", "#02.01.01.Hase.05"],  # beide Kameras des Starts teilen die Nummern
-        ["#02.01.02.Fuchs.07", "#02.01.02.Hase.07"],  # die Saison zählte eins weiter, insgesamt kamen zwei Videos dazu
+        ["#02.01.01.Fuchs.06", "#02.01.01.Hase.06"],  # beide Kameras des Starts teilen die Nummern, 4 + 2 Videos
+        ["#02.01.02.Fuchs.08", "#02.01.02.Hase.08"],  # die Saison zählte eins weiter, insgesamt zwei Videos mehr
     ]
 
 
@@ -278,6 +278,26 @@ async def test_the_sensors_are_up_to_date_when_the_season_events_arrive(hass, st
 
     assert began == [("2", "0")]  # die neue Saison mit leerem Zähler
     assert ended == ["Frank: season 2 ended"]
+
+
+async def test_the_total_in_the_file_names_is_the_value_the_sensor_shows_after_the_start(hass, stream) -> None:
+    cams = tuple(f"camera.c{i}" for i in range(1, 8))
+    add_cameras(hass, *(cam.split(".")[1] for cam in cams))
+    entry = await setup_entry(
+        hass,
+        [make_partner("Frank", 2)],
+        [make_place("Bett", cams=cams)],
+        file_pattern="#{nr}.{saison}.{aufnahme}.{cam}.{gesamt}",
+    )
+    state = _runtime(entry).states[FRANK]
+    state.season, state.count_season, state.count_total = 2, 5, 35
+
+    await _start(hass)
+
+    (_, _, cams_sent, *_rest) = FakeRecorder.calls[-1]
+    assert [c["stem"] for c in cams_sent] == [f"#02.02.06.C{i}.42" for i in range(1, 8)]  # alle sieben mit 42
+    sensor = partner_entity(hass, entry, FRANK, "sensor", "recordings_total")
+    assert hass.states.get(sensor).state == "42"  # dieselbe Zahl wie im Dateinamen
 
 
 async def test_the_start_event_lists_the_preferences_that_are_on_in_the_order_of_the_partner(
