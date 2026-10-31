@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Spiel Saison",
-        "description": "Verbindung zur App „Spiel Saison Recorder“ und Ordner der Aufnahmen. Die Adresse zeigt die Seite der App unter „Info → Hostname“, der Schlüssel ist der `api_key` aus den App-Einstellungen. Die Aufnahmen landen im Ordner der App unter: Basis-Ordner / Ordner je Spielpartner / Ordner je Saison / Datei je Kamera. In den Mustern kannst du die Platzhalter partner, nr, saison, aufnahme, cam, cam_nr und ort jeweils in geschweiften Klammern verwenden (cam und cam_nr nur im Dateinamen), dazu Datum und Zeit mit %CCYY %MM %DD %hh %mm %ss.",
+        "description": "Verbindung zur App „Spiel Saison Recorder“ und Ordner der Aufnahmen. Die Adresse zeigt die Seite der App unter „Info → Hostname“, der Schlüssel ist der `api_key` aus den App-Einstellungen. Die Aufnahmen landen im Ordner der App unter: Basis-Ordner / Ordner je Spielpartner / Ordner je Saison / Datei je Kamera. In den Mustern kannst du die Platzhalter partner, nr, saison, aufnahme, gesamt, cam, cam_nr und ort jeweils in geschweiften Klammern verwenden (cam und cam_nr nur im Dateinamen), dazu Datum und Zeit mit %CCYY %MM %DD %hh %mm %ss.",
         "data": {
           "recorder_url": "Adresse der App",
           "recorder_key": "Schlüssel (api_key)",
@@ -15,7 +15,7 @@
       },
       "reconfigure": {
         "title": "Verbindung und Ordner ändern",
-        "description": "Neue Ordner-Muster gelten ab der nächsten Aufnahme. Schon vorhandene Aufnahmen bleiben, wo sie sind. Platzhalter wie beim Einrichten: partner, nr, saison, aufnahme, cam, cam_nr und ort jeweils in geschweiften Klammern, dazu Datum und Zeit mit %CCYY %MM %DD %hh %mm %ss.",
+        "description": "Neue Ordner-Muster gelten ab der nächsten Aufnahme. Schon vorhandene Aufnahmen bleiben, wo sie sind. Platzhalter wie beim Einrichten: partner, nr, saison, aufnahme, gesamt, cam, cam_nr und ort jeweils in geschweiften Klammern, dazu Datum und Zeit mit %CCYY %MM %DD %hh %mm %ss.",
         "data": {
           "recorder_url": "Adresse der App",
           "recorder_key": "Schlüssel (api_key)",

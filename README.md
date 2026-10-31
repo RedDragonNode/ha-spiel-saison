@@ -41,7 +41,7 @@ Die Verbindung hat dazu die **Ordner-Muster**, die später unter *Verbindung und
 | Ordner je Saison | `Saison {saison} vom %DD,%MM,%CCYY` (das Datum ist der **Beginn der Saison**) |
 | Dateiname je Kamera | `#{nr}.{saison}.{aufnahme}.Cam ID.{cam} %DD.%MM.%CCYY` |
 
-Platzhalter in geschweiften Klammern: `{partner}` Name, `{nr}` Nummer des Spielpartners, `{saison}` Saison, `{aufnahme}` Nummer der Aufnahme in der Saison, `{cam}` Präfix der Kamera (bei Ctronics 4K Cam das Präfix, das man beim Hinzufügen der Kamera einträgt, hat eine Kamera keins, steht dort ihr Name, der Gerätename), `{cam_nr}` Nummer der Kamera beim Spielpartner (die beiden letzten nur im Dateinamen), `{ort}` Ort. Zahlen sind zweistellig (`03`). Dazu Datum und Zeit mit `%CCYY %MM %DD %hh %mm %ss`. Heißen zwei Dateien gleich, hängt die Integration `Cam NN` an.
+Platzhalter in geschweiften Klammern: `{partner}` Name, `{nr}` Nummer des Spielpartners, `{saison}` Saison, `{aufnahme}` Nummer der Aufnahme in der Saison, `{gesamt}` Nummer der Aufnahme insgesamt mit diesem Spielpartner (der Zähler **Aufnahmen gesamt** plus eins), `{cam}` Präfix der Kamera (bei Ctronics 4K Cam das Präfix, das man beim Hinzufügen der Kamera einträgt, hat eine Kamera keins, steht dort ihr Name, der Gerätename), `{cam_nr}` Nummer der Kamera beim Spielpartner (die beiden letzten nur im Dateinamen), `{ort}` Ort. Zahlen sind zweistellig (`03`). Dazu Datum und Zeit mit `%CCYY %MM %DD %hh %mm %ss`. Heißen zwei Dateien gleich, hängt die Integration `Cam NN` an.
 
 ### Spielpartner
 
@@ -172,12 +172,12 @@ Ereignisse für eigene Automationen (zum Beispiel Benachrichtigungen):
 
 | Ereignis | Daten |
 |---|---|
-| `spiel_saison_recording_started` | `partner`, `nickname`, `partner_id`, `season`, `recording`, `place`, `folder`, `cams`, `session`, `files` |
+| `spiel_saison_recording_started` | `partner`, `nickname`, `partner_id`, `season`, `recording`, `place`, `folder`, `cams`, `session`, `files`, `preferences` |
 | `spiel_saison_recording_stopped` | `partner`, `nickname`, `partner_id`, `season`, `recording`, `place`, `reason` (`manual`, `cancelled`, vom Recorder gemeldeter Grund), `duration_s` |
 | `spiel_saison_season_started` | `partner`, `partner_id`, `season`, `start` |
 | `spiel_saison_season_ended` | `partner`, `nickname`, `partner_id`, `season`, `start`, `recordings`, `seconds` |
 
-Beim Start-Ereignis ist `cams` die Liste der Kamera-Entity-IDs, die aufnehmen, `session` der Name der Sitzung (zum Beispiel `Frank Saison 03 Aufnahme 07`) und `files` die Liste der Dateien, eine je Kamera: `[{"cam": "camera.fuchsauge", "name": "#02.03.07.Cam ID.#1 28.10.2026"}]`. `name` ist der Dateiname **ohne Endung**. Die App hängt je nach ihrer Einstellung `container` `.mp4` (Standard) oder `.mkv` an, nach einem Neustart der Aufnahme einer Kamera kommt ` Teil 2` dazu, und unzulässige Zeichen ersetzt die App durch `_`. Die Stream-Adressen stehen nicht im Ereignis, weil sie Zugangsdaten enthalten können.
+Beim Start-Ereignis ist `cams` die Liste der Kamera-Entity-IDs, die aufnehmen, `session` der Name der Sitzung (zum Beispiel `Frank Saison 03 Aufnahme 07`) und `files` die Liste der Dateien, eine je Kamera: `[{"cam": "camera.fuchsauge", "name": "#02.03.07.Cam ID.#1 28.10.2026"}]`. `name` ist der Dateiname **ohne Endung**. Die App hängt je nach ihrer Einstellung `container` `.mp4` (Standard) oder `.mkv` an, nach einem Neustart der Aufnahme einer Kamera kommt ` Teil 2` dazu, und unzulässige Zeichen ersetzt die App durch `_`. Die Stream-Adressen stehen nicht im Ereignis, weil sie Zugangsdaten enthalten können. `preferences` ist die Liste der Namen der Vorlieben, bei denen der Schalter „dabei“ beim Start an ist (in der Reihenfolge der Vorlieben des Spielpartners, leer, wenn keine an ist), zum Beispiel `["Fisten", "XXL Spielzeug"]`.
 
 Beendet der Recorder eine Aufnahme von sich aus (zum Beispiel weil der Speicher voll ist), räumt die Integration auf, sendet das Stopp-Ereignis und legt unter *Einstellungen → System → Reparaturen* einen Hinweis an.
 

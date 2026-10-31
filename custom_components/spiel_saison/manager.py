@@ -328,6 +328,11 @@ class SpielSaisonManager:
             for name in names
         ]
 
+    def active_preferences(self, partner: PartnerCfg) -> list[str]:
+        """Namen der Vorlieben, bei denen „dabei“ an ist, in der Reihenfolge der Vorlieben des Spielpartners."""
+        on = self.states[partner.subentry_id].pref_on
+        return [name for _kind, name, key in self.preferences(partner) if key in on]
+
     async def async_set_preference(self, sid: str, key: str, *, on: bool) -> None:
         """Eine Vorliebe „dabei“ ein- oder ausschalten. Beim Start einer Aufnahme zählen die eingeschalteten."""
         state = self.states[sid]
@@ -1014,6 +1019,7 @@ class SpielSaisonManager:
             "nr": logic.pad(p.number),
             "saison": logic.pad(st.season),
             "aufnahme": logic.pad(st.count_season + 1),
+            "gesamt": logic.pad(st.count_total + 1),
             "ort": place.name if place else "",
         }
 
@@ -1089,6 +1095,7 @@ class SpielSaisonManager:
         st.count_total += 1
         for key in st.pref_on:
             st.pref_counts[key] = st.pref_counts.get(key, 0) + 1
+        preferences = self.active_preferences(p)  # dieselben, die eben mitgezählt wurden
         run["start"] = st.last_start = dt_util.utcnow().isoformat()
         run["phase"] = PHASE_RECORDING
         self._tasks.pop(sid, None)
@@ -1107,6 +1114,7 @@ class SpielSaisonManager:
                 "session": run["session"],
                 # Dateiname ohne Endung je Kamera. Die Stream-Adresse bleibt draußen, sie kann Zugangsdaten tragen.
                 "files": [{"cam": cam["id"], "name": cam["stem"]} for cam in cams],
+                "preferences": preferences,
             },
         )
         ir.async_delete_issue(self.hass, DOMAIN, f"recording_lost_{sid}")

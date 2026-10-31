@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Spiel Saison",
-        "description": "Connection to the app “Spiel Saison Recorder” and the folder of the recordings. The address is shown on the app page under “Info → Hostname”, the key is the `api_key` from the app settings. Recordings go into the app folder under: base folder / folder per play partner / folder per season / file per camera. In the patterns you can use the placeholders partner, nr, saison, aufnahme, cam, cam_nr and ort, each in curly braces (cam and cam_nr only in the file name), plus date and time with %CCYY %MM %DD %hh %mm %ss.",
+        "description": "Connection to the app “Spiel Saison Recorder” and the folder of the recordings. The address is shown on the app page under “Info → Hostname”, the key is the `api_key` from the app settings. Recordings go into the app folder under: base folder / folder per play partner / folder per season / file per camera. In the patterns you can use the placeholders partner, nr, saison, aufnahme, gesamt, cam, cam_nr and ort, each in curly braces (cam and cam_nr only in the file name), plus date and time with %CCYY %MM %DD %hh %mm %ss.",
         "data": {
           "recorder_url": "App address",
           "recorder_key": "Key (api_key)",
@@ -15,7 +15,7 @@
       },
       "reconfigure": {
         "title": "Change connection and folders",
-        "description": "New folder patterns apply from the next recording. Existing recordings stay where they are. Placeholders as during setup: partner, nr, saison, aufnahme, cam, cam_nr and ort, each in curly braces, plus date and time with %CCYY %MM %DD %hh %mm %ss.",
+        "description": "New folder patterns apply from the next recording. Existing recordings stay where they are. Placeholders as during setup: partner, nr, saison, aufnahme, gesamt, cam, cam_nr and ort, each in curly braces, plus date and time with %CCYY %MM %DD %hh %mm %ss.",
         "data": {
           "recorder_url": "App address",
           "recorder_key": "Key (api_key)",

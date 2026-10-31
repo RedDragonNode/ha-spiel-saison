@@ -13,6 +13,7 @@ from homeassistant.helpers import issue_registry as ir
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_capture_events, async_fire_time_changed
 
+from custom_components.spiel_saison import logic
 from custom_components.spiel_saison.const import (
     DOMAIN,
     EVENT_SEASON,
@@ -156,6 +157,43 @@ async def test_the_start_event_names_the_session_and_the_files_but_hides_the_str
         {"cam": "camera.hase", "name": f"#02.01.01.Cam ID.Hase {today}"},
     ]
     assert stream.return_value not in str(event.data)  # die Adresse kann Zugangsdaten enthalten
+
+
+async def test_the_total_count_goes_into_the_file_name_and_counts_on_with_each_recording(hass, stream, cams) -> None:
+    entry = await setup_entry(
+        hass,
+        [make_partner("Frank", 2)],
+        [make_place("Bett")],
+        file_pattern="#{nr}.{saison}.{aufnahme}.{cam}.{gesamt}",
+    )
+    _runtime(entry).states[FRANK].count_total = 4  # vier Aufnahmen gab es schon, in anderen Saisons
+
+    await _start(hass)
+    await _stop(hass)
+    await _start(hass)
+
+    stems = [[c["stem"] for c in call[2]] for call in FakeRecorder.calls if call[0] == "start"]
+    assert stems == [
+        ["#02.01.01.Fuchs.05", "#02.01.01.Hase.05"],
+        ["#02.01.02.Fuchs.06", "#02.01.02.Hase.06"],
+    ]
+
+
+async def test_the_start_event_lists_the_preferences_that_are_on_in_the_order_of_the_partner(
+    hass, stream, cams
+) -> None:
+    entry = await _setup(hass, [make_place("Bett")], likes=["Seil"], treats=["Feder", "Kette", "Schal"])
+    started = async_capture_events(hass, EVENT_STARTED)
+    _runtime(entry).states[FRANK].pref_on = [logic.preference_key("treat", name) for name in ("Schal", "Feder")]
+
+    await _start(hass)
+    await _stop(hass)
+    _runtime(entry).states[FRANK].pref_on = []
+    await _start(hass)
+
+    first, second = started
+    assert first.data["preferences"] == ["Feder", "Schal"]  # wie beim Spielpartner eingetragen, nicht wie eingeschaltet
+    assert second.data["preferences"] == []  # keine an: eine leere Liste, kein fehlendes Feld
 
 
 def _ctronics_cam(hass, registry, name: str, options: dict) -> None:

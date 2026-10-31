@@ -36,6 +36,12 @@ def test_the_default_file_pattern_uses_the_name_of_the_camera() -> None:
     assert logic.render_pattern(DEFAULT_FILE_PATTERN, WHEN, values) == "#02.01.03.Cam ID.Fuchsrevier 15.10.2026"
 
 
+def test_the_total_number_of_recordings_is_a_placeholder() -> None:
+    values = {"nr": "02", "saison": "02", "aufnahme": "02", "gesamt": "05", "cam": "PI"}
+    pattern = "#{nr}.{saison}.{aufnahme}.{cam}.{gesamt} %DD.%MM.%CCYY"
+    assert logic.render_pattern(pattern, WHEN, values) == "#02.02.02.PI.05 15.10.2026"
+
+
 def test_render_pattern_time_tokens() -> None:
     assert logic.render_pattern("%hh-%mm-%ss", WHEN, {}) == "21-05-09"
 
