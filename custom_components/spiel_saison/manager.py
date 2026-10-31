@@ -160,8 +160,8 @@ class SeasonStep:
 class PartnerState:
     """Zähler und Auswertung eines Spielpartners (gespeichert)."""
 
-    season: int = 1
-    season_start: str = ""  # ISO-Datum, an dem die Saison begann
+    season: int = 0  # 0: noch keine Saison, die erste (Saison vorbereiten oder Aufnahme) zählt auf 1
+    season_start: str = ""  # ISO-Datum, an dem die Saison begann, leer ohne Saison
     count_season: int = 0
     count_total: int = 0
     seconds_season: float = 0.0
@@ -260,7 +260,8 @@ class SpielSaisonManager:
         for sid in self.partners:
             raw = (stored.get("partners") or {}).get(sid) or {}
             state = PartnerState(**{k: v for k, v in raw.items() if k in known})
-            state.season_start = state.season_start or today
+            if state.season >= 1:
+                state.season_start = state.season_start or today
             keys = {key for kind, _name, key in self.preferences(self.partners[sid]) if kind in COUNTED_KINDS}
             state.pref_on = [key for key in state.pref_on if key in keys]
             lights = self.partners[sid].lights
@@ -568,6 +569,8 @@ class SpielSaisonManager:
             raise ValueError(unknown[0])
         for counter, value in counters.items():
             setattr(state, counter, int(value))
+        if "season" in counters and state.season <= 0:
+            state.season, state.season_start = 0, ""  # ohne Saison: Saison vorbereiten beginnt wieder Saison 1
         for attr in reset:
             setattr(state, attr, 0.0)
         for key in reset_preferences:
@@ -600,12 +603,13 @@ class SpielSaisonManager:
         st = self.states[p.subentry_id]
         if self.season_today(p.subentry_id):
             return False
-        st.seasons[str(st.season)] = {
-            "start": st.season_start,
-            "recordings": st.count_season,
-            "seconds": round(st.seconds_season),
-            "longest": round(st.longest_season),
-        }
+        if st.season >= 1:  # vor der ersten Saison gibt es nichts zu archivieren
+            st.seasons[str(st.season)] = {
+                "start": st.season_start,
+                "recordings": st.count_season,
+                "seconds": round(st.seconds_season),
+                "longest": round(st.longest_season),
+            }
         st.season += 1
         st.season_start = dt_util.now().date().isoformat()
         st.count_season, st.seconds_season, st.longest_season = 0, 0.0, 0.0
@@ -984,6 +988,8 @@ class SpielSaisonManager:
                     translation_key="no_cam_available",
                     translation_placeholders={"partner": p.name, "details": _describe(skipped)},
                 )
+            if not self.states[sid].season_start:  # noch keine Saison: die erste Aufnahme beginnt Saison 1
+                await self._begin_season(p)
             now = dt_util.now()
             names = logic.unique_names(
                 [self.cam_name(eid) for eid, _ in ready], [eid.split(".", 1)[1] for eid, _ in ready]
@@ -1028,7 +1034,7 @@ class SpielSaisonManager:
         return {
             "partner": p.name,
             "nr": logic.pad(p.number),
-            "saison": logic.pad(st.season),
+            "saison": logic.pad(st.season if st.season_start else st.season + 1),  # ohne Saison die erste
             "aufnahme": logic.pad(st.count_season + 1),
             "gesamt": logic.pad(st.count_total + videos),
             "ort": place.name if place else "",
@@ -1037,7 +1043,8 @@ class SpielSaisonManager:
     def _season_folder(self, p: PartnerCfg, place: PlaceCfg | None, now: datetime, videos: int = 1) -> list[str]:
         """Ordner der aktuellen Saison: Basis-Ordner, Ordner des Spielpartners, Ordner der Saison."""
         values = self._pattern_values(p, place, videos)
-        season_day = datetime.combine(date.fromisoformat(self.states[p.subentry_id].season_start), time())
+        season_start = self.states[p.subentry_id].season_start or dt_util.now().date().isoformat()
+        season_day = datetime.combine(date.fromisoformat(season_start), time())
         return [
             *logic.split_path(self._data(CONF_BASE_FOLDER, DEFAULT_BASE_FOLDER)),
             *logic.split_path(

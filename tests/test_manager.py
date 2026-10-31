@@ -237,6 +237,51 @@ def _states_when(hass, event_type: str, read) -> list:
     return seen
 
 
+async def test_a_new_partner_starts_at_season_zero_and_the_first_prepare_begins_season_one(hass, cams) -> None:
+    entry = await setup_entry(hass, [make_partner("Frank", 2)], [make_place("Bett")], season_begun=False)
+    season = partner_entity(hass, entry, FRANK, "sensor", "season")
+    events = async_capture_events(hass, EVENT_SEASON)
+    state = _runtime(entry).states[FRANK]
+    assert hass.states.get(season).state == "0"  # wie alle Zähler bei null
+    assert (state.season, state.season_start, state.seasons) == (0, "", {})
+
+    first = await _prepare(hass)
+    again = await _prepare(hass)
+
+    assert (first["season"], first["new_season"]) == (1, True)  # das Vorbereiten zählt die erste Saison
+    assert (again["season"], again["new_season"]) == (1, False)  # am selben Tag nur einmal
+    assert first["folder"].endswith(f"Saison 01 vom {dt_util.now():%d,%m,%Y}")
+    assert hass.states.get(season).state == "1"
+    assert state.seasons == {}  # vor Saison 1 gab es nichts zu archivieren
+    assert [event.data["season"] for event in events] == [1]
+
+
+async def test_the_first_recording_of_a_new_partner_begins_season_one_by_itself(hass, stream, cams) -> None:
+    entry = await setup_entry(hass, [make_partner("Frank", 2)], [make_place("Bett")], season_begun=False)
+    events = async_capture_events(hass, EVENT_SEASON)
+
+    await _start(hass)
+
+    (call,) = FakeRecorder.calls
+    assert call[1] == _season_folder("Frank", 2, 1)  # Saison 01, nicht 00
+    assert call[3] == "Frank Saison 01 Aufnahme 01"
+    assert [event.data["season"] for event in events] == [1]
+    assert _runtime(entry).states[FRANK].season == 1
+
+
+async def test_a_season_reset_to_zero_makes_the_next_prepare_begin_season_one_again(hass, cams) -> None:
+    entry = await setup_entry(hass, [make_partner("Frank", 2)], [make_place("Bett")])
+    runtime = _runtime(entry)
+    runtime.states[FRANK].season = 4
+
+    await runtime.async_edit_statistics(FRANK, {"season": 0})
+    assert (runtime.states[FRANK].season, runtime.states[FRANK].season_start) == (0, "")
+    result = await _prepare(hass)
+
+    assert (result["season"], result["new_season"]) == (1, True)
+    assert runtime.states[FRANK].seasons == {}  # nichts aus der zurückgesetzten Saison wird archiviert
+
+
 async def test_the_sensors_show_the_new_counters_when_the_start_event_arrives(hass, stream, cams) -> None:
     entry = await _setup(hass, [make_place("Bett")])
     season = partner_entity(hass, entry, FRANK, "sensor", "recordings_season")

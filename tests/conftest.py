@@ -11,9 +11,11 @@ from homeassistant.config_entries import ConfigSubentryData
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import entity_registry as er
 from homeassistant.setup import async_setup_component
+from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.spiel_saison.const import DOMAIN
+from custom_components.spiel_saison.manager import counters_store
 from custom_components.spiel_saison.recorder_client import RecorderAuthError, RecorderError
 
 URL = "http://app:8099"
@@ -193,9 +195,13 @@ async def setup_entry(
     *,
     minor_version: int = 5,
     options: dict[str, Any] | None = None,
+    season_begun: bool = True,
     **data: Any,
 ) -> MockConfigEntry:
     """Richtet Spiel Saison ein.
+
+    Die Spielpartner haben schon Saison 1, die heute begann. Mit `season_begun=False` starten sie wie neu angelegt
+    bei Saison 0, die erste Saison beginnt dann erst mit Saison vorbereiten oder der ersten Aufnahme.
 
     Subentry-IDs: 'p_<Name>' für Spielpartner, 'o_<Name>' für Orte (bei gleichem Namen 'o_<Name>_<Spielpartner>').
     Die gemerkten Vorlieben für neue Spielpartner gehen über `like_catalog` und `treat_catalog`.
@@ -233,6 +239,10 @@ async def setup_entry(
         minor_version=minor_version,
     )
     entry.add_to_hass(hass)
+    if season_begun and partners:
+        today = dt_util.now().date().isoformat()
+        stored = {f"p_{partner['name']}": {"season": 1, "season_start": today} for partner in partners}
+        await counters_store(hass, entry.entry_id).async_save({"partners": stored})
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     return entry

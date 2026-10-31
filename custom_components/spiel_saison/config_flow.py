@@ -92,9 +92,9 @@ _TEXT = selector.TextSelector()
 _SECRET = selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD))
 _TARGET = selector.TargetSelector()
 
-# Zähler, die man bei „Spielpartner bearbeiten“ zurücksetzt: Schalter -> (Feld von PartnerState, Wert danach)
+# Zähler, die man bei „Spielpartner bearbeiten“ auf null setzt: Schalter -> (Feld von PartnerState, Wert danach)
 _COUNTER_RESETS = {
-    FIELD_RESET_SEASON: ("season", 1),
+    FIELD_RESET_SEASON: ("season", 0),
     FIELD_RESET_RECORDINGS_SEASON: ("count_season", 0),
     FIELD_RESET_RECORDINGS_TOTAL: ("count_total", 0),
 }

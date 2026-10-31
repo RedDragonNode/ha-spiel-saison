@@ -353,7 +353,7 @@ async def test_partner_reconfigure_resets_only_the_chosen_counters(hass: HomeAss
     assert not {*COUNTER_RESETS, *DURATION_RESETS} & set(entry.subentries["p_Frank"].data)  # nicht im Spielpartner
 
 
-async def test_the_season_switch_sets_the_season_back_to_one_and_the_total_to_zero(hass: HomeAssistant) -> None:
+async def test_the_season_switch_sets_the_season_to_zero_and_the_total_to_zero(hass: HomeAssistant) -> None:
     entry = await setup_entry(hass, [make_partner("Frank", 1)])
     state = entry.runtime_data.states["p_Frank"]
     state.season, state.count_season, state.count_total = 3, 4, 28
@@ -365,7 +365,8 @@ async def test_the_season_switch_sets_the_season_back_to_one_and_the_total_to_ze
     await hass.async_block_till_done()
 
     state = entry.runtime_data.states["p_Frank"]
-    assert (state.season, state.count_season, state.count_total) == (1, 4, 0)  # nur die beiden gewählten
+    assert (state.season, state.count_season, state.count_total) == (0, 4, 0)  # nur die beiden gewählten
+    assert state.season_start == ""  # ohne Saison: das nächste Saison vorbereiten beginnt Saison 1
 
 
 async def test_partner_reconfigure_resets_the_chosen_durations_and_remembers_it(hass: HomeAssistant) -> None:
