@@ -68,7 +68,7 @@
         },
         "reconfigure": {
           "title": "Edit play partner",
-          "description": "Change name, number, nickname, preferences and announcement. New preferences get their entries on the device when you save, removed ones disappear there. Below you find the counters Season, Recordings in season and Recordings total. You can only change them here, and only what you change is applied. With the switches below you set the recording time in the season, the recording time total, the longest recording in the season and the counters of the preferences for working on their partner to zero. Existing recordings stay in their folder, new ones go to the folder with the changed name. The cameras are set at the places. In the announcements you can use the placeholders nickname, partner, nr, saison and ort, each in curly braces. Under “Lights” you choose the lights this play partner may adjust. They appear on the partner's device, where they are set the way the play partner likes best and saved with the “Save lighting” button. With the first recording of every season this lighting is set again.",
+          "description": "Change name, number, nickname, preferences and announcement. New preferences get their entries on the device when you save, removed ones disappear there. Below you find switches with which, when you save, you set the season back to 1 and the counters Recordings in season, Recordings total and those of the preferences for working on their partner, as well as the recording time in the season, the recording time total and the longest recording in the season, to zero. You can only do this here. Existing recordings stay in their folder, new ones go to the folder with the changed name. The cameras are set at the places. In the announcements you can use the placeholders nickname, partner, nr, saison and ort, each in curly braces. Under “Lights” you choose the lights this play partner may adjust. They appear on the partner's device, where they are set the way the play partner likes best and saved with the “Save lighting” button. With the first recording of every season this lighting is set again.",
           "data": {
             "name": "Name",
             "number": "Number",
@@ -79,9 +79,9 @@
             "announce_entity": "Announce via (notify entity, e.g. Alexa)",
             "announce_start": "Announcement on start",
             "announce_end": "Announcement on end",
-            "season": "Season",
-            "recordings_season": "Recordings in season",
-            "recordings_total": "Recordings total",
+            "reset_season": "Set season to 1",
+            "reset_recordings_season": "Set recordings in season to zero",
+            "reset_recordings_total": "Set recordings total to zero",
             "reset_duration_season": "Set recording time in season to zero",
             "reset_duration_total": "Set recording time total to zero",
             "reset_longest_season": "Set longest recording in season to zero"

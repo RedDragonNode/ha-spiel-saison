@@ -53,15 +53,15 @@ Platzhalter in geschweiften Klammern: `{partner}` Name, `{nr}` Nummer des Spielp
 | **Eigene Vorlieben**, **Vorlieben zum Bearbeiten seines Partners** | zwei Felder, in die du eigene Einträge tippst (jeden mit Enter bestätigen). Alles, was du je eingegeben hast, steht bei jedem weiteren Spielpartner zur Wahl |
 | **Ansage** | eine `notify`-Entity (zum Beispiel ein Echo) mit je einem Text für den Start und das Ende einer Aufnahme. In den Texten gehen `{nickname}`, `{partner}`, `{nr}`, `{saison}` und `{ort}` |
 
-Beim **Bearbeiten** eines Spielpartners (beim Anlegen noch nicht) kommen unten die Zähler und das Zurücksetzen der Auswertung dazu:
+Beim **Bearbeiten** eines Spielpartners (beim Anlegen noch nicht) kommen unten Schalter dazu, die Zähler und Auswertung zurücksetzen:
 
 | Feld | Bedeutung |
 |---|---|
-| **Saison**, **Aufnahmen in Saison**, **Aufnahmen gesamt** | die Zähler, wie sie gerade stehen. Übernommen wird nur, was du änderst. Eine Aufnahme, die währenddessen zu Ende geht, bleibt gezählt |
+| **Saison auf 1 setzen**, **Aufnahmen in Saison auf null setzen**, **Aufnahmen gesamt auf null setzen** | Schalter, die beim Speichern den jeweiligen Zähler zurücksetzen. Danach stehen sie wieder aus. Einen anderen Wert kannst du nicht eintragen |
 | **Aufnahmedauer in Saison auf null setzen**, **Aufnahmedauer gesamt auf null setzen**, **Längste Aufnahme in Saison auf null setzen** | Schalter, die beim Speichern die jeweilige Auswertung auf null setzen. Danach stehen sie wieder aus |
 | **… Zähler auf null setzen**, ein Schalter je Vorliebe zum Bearbeiten (zum Beispiel „Fisten Zähler auf null setzen“) | setzt beim Speichern den Zähler dieser Vorlieben auf null. Der Schalter „dabei“ bleibt, wie er ist |
 
-Am Gerät des Spielpartners sind die Zähler Sensoren. Ändern lassen sie sich nur hier.
+Am Gerät des Spielpartners sind die Zähler Sensoren. Zurücksetzen lassen sie sich nur hier.
 
 Die Kameras gehören nicht zum Spielpartner, sondern zu seinen Orten. Nach einem Neustart von Home Assistant erkennt die Integration laufende Aufnahmen wieder.
 

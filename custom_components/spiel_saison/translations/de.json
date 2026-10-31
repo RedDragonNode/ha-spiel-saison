@@ -68,7 +68,7 @@
         },
         "reconfigure": {
           "title": "Spielpartner bearbeiten",
-          "description": "Name, Nummer, Spitzname, Vorlieben und Ansage ändern. Neue Vorlieben bekommen beim Speichern ihre Einträge am Gerät, gestrichene verschwinden dort. Unten stehen die Zähler Saison, Aufnahmen in Saison und Aufnahmen gesamt. Sie lassen sich nur hier ändern, übernommen wird nur, was du änderst. Mit den Schaltern darunter setzt du die Aufnahmedauer in der Saison, die Aufnahmedauer gesamt, die längste Aufnahme in der Saison und die Zähler der Vorlieben zum Bearbeiten auf null. Schon vorhandene Aufnahmen bleiben in ihrem Ordner, neue gehen in den Ordner mit dem geänderten Namen. Die Kameras stehen bei den Orten. In den Ansagen kannst du die Platzhalter nickname, partner, nr, saison und ort jeweils in geschweiften Klammern benutzen. Bei „Lichter“ wählst du die Lichter, die dieser Spielpartner einstellen darf. Sie erscheinen am Gerät des Spielpartners. Dort werden sie so eingestellt, wie der Spielpartner es am liebsten mag, und mit der Taste „Beleuchtung speichern“ gespeichert. Mit der ersten Aufnahme jeder Saison stellt sich diese Beleuchtung wieder ein.",
+          "description": "Name, Nummer, Spitzname, Vorlieben und Ansage ändern. Neue Vorlieben bekommen beim Speichern ihre Einträge am Gerät, gestrichene verschwinden dort. Unten stehen Schalter, mit denen du beim Speichern die Saison auf 1 und die Zähler Aufnahmen in Saison, Aufnahmen gesamt und die der Vorlieben zum Bearbeiten sowie die Aufnahmedauer in der Saison, die Aufnahmedauer gesamt und die längste Aufnahme in der Saison auf null setzt. Das geht nur hier. Schon vorhandene Aufnahmen bleiben in ihrem Ordner, neue gehen in den Ordner mit dem geänderten Namen. Die Kameras stehen bei den Orten. In den Ansagen kannst du die Platzhalter nickname, partner, nr, saison und ort jeweils in geschweiften Klammern benutzen. Bei „Lichter“ wählst du die Lichter, die dieser Spielpartner einstellen darf. Sie erscheinen am Gerät des Spielpartners. Dort werden sie so eingestellt, wie der Spielpartner es am liebsten mag, und mit der Taste „Beleuchtung speichern“ gespeichert. Mit der ersten Aufnahme jeder Saison stellt sich diese Beleuchtung wieder ein.",
           "data": {
             "name": "Name",
             "number": "Nummer",
@@ -79,9 +79,9 @@
             "announce_entity": "Ansage über (notify-Entity, z. B. Alexa)",
             "announce_start": "Ansage beim Start",
             "announce_end": "Ansage beim Ende",
-            "season": "Saison",
-            "recordings_season": "Aufnahmen in Saison",
-            "recordings_total": "Aufnahmen gesamt",
+            "reset_season": "Saison auf 1 setzen",
+            "reset_recordings_season": "Aufnahmen in Saison auf null setzen",
+            "reset_recordings_total": "Aufnahmen gesamt auf null setzen",
             "reset_duration_season": "Aufnahmedauer in Saison auf null setzen",
             "reset_duration_total": "Aufnahmedauer gesamt auf null setzen",
             "reset_longest_season": "Längste Aufnahme in Saison auf null setzen"

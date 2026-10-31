@@ -32,10 +32,10 @@ OLD_CAM_NUMBER_PART = "Cam ID.{cam_nr}"  # bis 0.1.0 stand hier die Nummer der K
 
 # --- Spielpartner (Subentry-Daten) -------------------------------------------------
 CONF_NUMBER = "number"  # Nummer des Spielpartners ("nr" in den Mustern)
-# Felder von „Spielpartner bearbeiten“ für Zähler und Auswertung. Sie landen nicht im Untereintrag.
-FIELD_SEASON = "season"
-FIELD_RECORDINGS_SEASON = "recordings_season"
-FIELD_RECORDINGS_TOTAL = "recordings_total"
+# Schalter von „Spielpartner bearbeiten“, die Zähler und Auswertung zurücksetzen. Sie landen nicht im Untereintrag.
+FIELD_RESET_SEASON = "reset_season"
+FIELD_RESET_RECORDINGS_SEASON = "reset_recordings_season"
+FIELD_RESET_RECORDINGS_TOTAL = "reset_recordings_total"
 FIELD_RESET_DURATION_SEASON = "reset_duration_season"
 FIELD_RESET_DURATION_TOTAL = "reset_duration_total"
 FIELD_RESET_LONGEST_SEASON = "reset_longest_season"
