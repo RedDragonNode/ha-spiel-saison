@@ -1091,8 +1091,8 @@ class SpielSaisonManager:
         except asyncio.CancelledError:
             raise
         st = self.states[sid]
-        st.count_season += len(cams)  # jede Kamera, die aufnimmt, zählt als eine Aufnahme (ein Video)
-        st.count_total += len(cams)
+        st.count_season += 1  # eine Aufnahme je Start, egal wie viele Kameras
+        st.count_total += len(cams)  # insgesamt zählt jedes Video, also jede Kamera, die aufnimmt
         for key in st.pref_on:
             st.pref_counts[key] = st.pref_counts.get(key, 0) + 1
         preferences = self.active_preferences(p)  # dieselben, die eben mitgezählt wurden

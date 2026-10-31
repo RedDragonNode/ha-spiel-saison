@@ -137,7 +137,7 @@ async def test_start_runs_the_steps_in_order_and_records(hass, stream, cams, ser
     assert profile == FRANK
     assert _runtime(entry).phase(FRANK) == "recording"
     state = _runtime(entry).states[FRANK]
-    assert (state.count_season, state.count_total) == (2, 2)  # jede der zwei Kameras zählt als Aufnahme
+    assert (state.count_season, state.count_total) == (1, 2)  # ein Start, zwei Videos
     (event,) = started
     assert event.data["partner"] == "Frank" and event.data["place"] == "Bett" and event.data["recording"] == 1
 
@@ -175,11 +175,11 @@ async def test_the_total_count_goes_into_the_file_name_and_counts_on_with_each_r
     stems = [[c["stem"] for c in call[2]] for call in FakeRecorder.calls if call[0] == "start"]
     assert stems == [
         ["#02.01.01.Fuchs.05", "#02.01.01.Hase.05"],  # beide Kameras des Starts teilen die Nummern
-        ["#02.01.03.Fuchs.07", "#02.01.03.Hase.07"],  # die Zähler stiegen um zwei, also springen die Nummern
+        ["#02.01.02.Fuchs.07", "#02.01.02.Hase.07"],  # die Saison zählte eins weiter, insgesamt kamen zwei Videos dazu
     ]
 
 
-async def test_every_camera_that_records_counts_as_a_recording(hass, stream) -> None:
+async def test_the_season_counts_the_recordings_and_the_total_counts_the_videos(hass, stream) -> None:
     cams = tuple(f"camera.c{i}" for i in range(1, 8))
     add_cameras(hass, *(cam.split(".")[1] for cam in cams))
     entry = await setup_entry(hass, [make_partner("Frank", 2)], [make_place("Bett", cams=cams)])
@@ -188,14 +188,14 @@ async def test_every_camera_that_records_counts_as_a_recording(hass, stream) -> 
 
     await _start(hass)
     state = _runtime(entry).states[FRANK]
-    assert (state.count_season, state.count_total) == (7, 7)
+    assert (state.count_season, state.count_total) == (1, 7)  # eine Aufnahme mit sieben Videos
     await _stop(hass)
     await _start(hass)
 
-    assert (state.count_season, state.count_total) == (14, 14)
+    assert (state.count_season, state.count_total) == (2, 14)
     sessions = [call[3] for call in FakeRecorder.calls if call[0] == "start"]
-    assert sessions == ["Frank Saison 01 Aufnahme 01", "Frank Saison 01 Aufnahme 08"]  # der zweite Start nach 7 Videos
-    assert [event.data["recording"] for event in started] == [1, 8]  # die Nummer in den Dateinamen
+    assert sessions == ["Frank Saison 01 Aufnahme 01", "Frank Saison 01 Aufnahme 02"]
+    assert [event.data["recording"] for event in started] == [1, 2]  # die Nummer in den Dateinamen
     assert [event.data["recording"] for event in stopped] == [1]  # das Ende nennt dieselbe Nummer
 
 
@@ -210,7 +210,8 @@ async def test_a_camera_that_does_not_record_does_not_count(hass, stream) -> Non
     result = await _start(hass)
 
     assert result["skipped"] == [{"cam": "camera.c3", "reason": "missing"}]
-    assert _runtime(entry).states[FRANK].count_total == 2
+    state = _runtime(entry).states[FRANK]
+    assert (state.count_season, state.count_total) == (1, 2)  # ein Start, zwei Videos
 
 
 async def test_the_counters_of_the_preferences_still_count_once_per_start(hass, stream, cams) -> None:
@@ -590,7 +591,7 @@ async def test_prepare_leaves_the_season_alone_while_recording(hass, stream, cam
     result = await _prepare(hass)
 
     assert (result["season"], result["new_season"]) == (1, False)
-    assert _runtime(entry).states[FRANK].count_season == 2
+    assert _runtime(entry).states[FRANK].count_season == 1
 
 
 async def test_prepare_works_without_a_place(hass, stream, cams, service_calls) -> None:
@@ -1084,7 +1085,7 @@ async def test_new_season_archives_and_resets(hass, stream, cams) -> None:
     assert result == {"partner": "Frank", "season": 2, "started": True}
     assert state.season == 2 and state.count_season == 0 and state.seconds_season == 0
     assert state.count_total == 2
-    assert state.seasons["1"]["recordings"] == 2 and state.seasons["1"]["seconds"] == 7200
+    assert state.seasons["1"]["recordings"] == 1 and state.seasons["1"]["seconds"] == 7200
     (event,) = season_events
     assert event.data["season"] == 2
     FakeRecorder.calls.clear()
@@ -1105,7 +1106,7 @@ async def test_only_one_season_begins_per_day(hass, stream, cams) -> None:
     )
 
     assert result == {"partner": "Frank", "season": 1, "started": False, "reason": "already_today"}
-    assert state.season == 1 and state.count_season == 2 and season_events == []
+    assert state.season == 1 and state.count_season == 1 and season_events == []
 
 
 async def test_new_season_is_refused_while_recording(hass, stream, cams) -> None:
