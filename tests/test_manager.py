@@ -6,7 +6,7 @@ import asyncio
 from datetime import timedelta
 
 import pytest
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import Event, HomeAssistant, ServiceCall, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
@@ -24,7 +24,7 @@ from custom_components.spiel_saison.const import (
 )
 from custom_components.spiel_saison.recorder_client import RecorderError
 
-from .conftest import FakeRecorder, add_cameras, make_partner, make_place, setup_entry
+from .conftest import FakeRecorder, add_cameras, hub_entity, make_partner, make_place, partner_entity, setup_entry
 
 FRANK = "p_Frank"
 TOBIAS = "p_Tobias"
@@ -223,6 +223,61 @@ async def test_the_counters_of_the_preferences_still_count_once_per_start(hass, 
 
     assert state.pref_counts == {logic.preference_key("treat", "Feder"): 1}
     assert state.count_total == 2
+
+
+def _states_when(hass, event_type: str, read) -> list:
+    """Hört auf ein Ereignis und liest im selben Augenblick Zustände (read bekommt hass.states)."""
+    seen: list = []
+
+    @callback
+    def listener(_event: Event) -> None:
+        seen.append(read(hass.states))
+
+    hass.bus.async_listen(event_type, listener)
+    return seen
+
+
+async def test_the_sensors_show_the_new_counters_when_the_start_event_arrives(hass, stream, cams) -> None:
+    entry = await _setup(hass, [make_place("Bett")])
+    season = partner_entity(hass, entry, FRANK, "sensor", "recordings_season")
+    total = partner_entity(hass, entry, FRANK, "sensor", "recordings_total")
+    seen = _states_when(hass, EVENT_STARTED, lambda states: (states.get(season).state, states.get(total).state))
+
+    await _start(hass)
+
+    assert seen == [("1", "2")]  # beim Ereignis steht der Zustand schon da: ein Start, zwei Videos
+
+
+async def test_the_sensors_are_up_to_date_when_the_stop_event_arrives(hass, stream, cams) -> None:
+    entry = await _setup(hass, [make_place("Bett")])
+    status = partner_entity(hass, entry, FRANK, "sensor", "status")
+    hub = hub_entity(hass, entry, "sensor", "status")
+    await _start(hass)
+    seen = _states_when(
+        hass, EVENT_STOPPED, lambda states: (states.get(status).state, states.get(hub).attributes["message"])
+    )
+
+    await _stop(hass)
+
+    assert seen == [("stopping", "Frank: stopped (manual)")]
+
+
+async def test_the_sensors_are_up_to_date_when_the_season_events_arrive(hass, stream, cams) -> None:
+    entry = await _setup(hass)
+    season = partner_entity(hass, entry, FRANK, "sensor", "season")
+    recordings = partner_entity(hass, entry, FRANK, "sensor", "recordings_season")
+    hub = hub_entity(hass, entry, "sensor", "status")
+    await _start(hass)
+    await _stop(hass)
+    _runtime(entry).states[FRANK].season_start = _days_ago(1)
+    began = _states_when(hass, EVENT_SEASON, lambda states: (states.get(season).state, states.get(recordings).state))
+    ended = _states_when(hass, EVENT_SEASON_ENDED, lambda states: states.get(hub).attributes["message"])
+
+    await hass.services.async_call(DOMAIN, "new_season", {"partner": "Frank"}, blocking=True)
+    await _end_season(hass)
+
+    assert began == [("2", "0")]  # die neue Saison mit leerem Zähler
+    assert ended == ["Frank: season 2 ended"]
 
 
 async def test_the_start_event_lists_the_preferences_that_are_on_in_the_order_of_the_partner(

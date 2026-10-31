@@ -603,12 +603,12 @@ class SpielSaisonManager:
         st.season_start = dt_util.now().date().isoformat()
         st.count_season, st.seconds_season, st.longest_season = 0, 0.0, 0.0
         await self._save()
+        self._set_message(f"{p.name}: season {st.season}")
+        self.notify()  # erst der Zustand, dann das Ereignis: wer es hört, sieht die Sensoren schon aktualisiert
         self.hass.bus.async_fire(
             EVENT_SEASON,
             {"partner": p.name, "partner_id": p.subentry_id, "season": st.season, "start": st.season_start},
         )
-        self._set_message(f"{p.name}: season {st.season}")
-        self.notify()
         return True
 
     async def async_select_place(self, sid: str, place_id: str) -> None:
@@ -896,12 +896,12 @@ class SpielSaisonManager:
             "recordings": st.count_season,
             "seconds": round(st.seconds_season),
         }
+        self._set_message(f"{p.name}: season {st.season} ended")
+        self.notify()  # erst der Zustand, dann das Ereignis
         self.hass.bus.async_fire(
             EVENT_SEASON_ENDED,
             {**result, "partner_id": p.subentry_id, "nickname": p.nickname, "start": st.season_start},
         )
-        self._set_message(f"{p.name}: season {st.season} ended")
-        self.notify()
         return result
 
     async def _ensure_folder(self, p: PartnerCfg, folder: list[str]) -> bool | None:
@@ -1100,6 +1100,9 @@ class SpielSaisonManager:
         run["phase"] = PHASE_RECORDING
         self._tasks.pop(sid, None)
         await self._save()
+        ir.async_delete_issue(self.hass, DOMAIN, f"recording_lost_{sid}")
+        self._set_message(f"{p.name}: recording ({len(cams)} cams)")
+        self.notify()  # erst der Zustand, dann das Ereignis: die Zähler-Sensoren zeigen den neuen Wert schon
         self.hass.bus.async_fire(
             EVENT_STARTED,
             {
@@ -1117,9 +1120,6 @@ class SpielSaisonManager:
                 "preferences": preferences,
             },
         )
-        ir.async_delete_issue(self.hass, DOMAIN, f"recording_lost_{sid}")
-        self._set_message(f"{p.name}: recording ({len(cams)} cams)")
-        self.notify()
 
     # ----------------------------------------------------------------------- Stop
     async def async_stop_recording(self, ref: str) -> dict[str, Any]:
@@ -1169,6 +1169,11 @@ class SpielSaisonManager:
         run["phase"] = PHASE_STOPPING
         await self._save()
         place = self.places.get(run.get("place") or "")
+        self._set_message(f"{p.name}: stopped ({reason})")
+        self._tasks[sid] = self.hass.async_create_background_task(
+            self._end_sequence(sid, place, wait=recorded), f"{DOMAIN}_end_{sid}", eager_start=False
+        )
+        self.notify()  # erst der Zustand, dann das Ereignis: die Sensoren zeigen Auswertung und Phase schon
         self.hass.bus.async_fire(
             EVENT_STOPPED,
             {
@@ -1182,11 +1187,6 @@ class SpielSaisonManager:
                 "duration_s": round(seconds),
             },
         )
-        self._set_message(f"{p.name}: stopped ({reason})")
-        self._tasks[sid] = self.hass.async_create_background_task(
-            self._end_sequence(sid, place, wait=recorded), f"{DOMAIN}_end_{sid}", eager_start=False
-        )
-        self.notify()
 
     async def _end_sequence(self, sid: str, place: PlaceCfg | None, *, wait: bool) -> None:
         try:
