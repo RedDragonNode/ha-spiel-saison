@@ -41,7 +41,7 @@ Die Verbindung hat dazu die **Ordner-Muster**, die später unter *Verbindung und
 | Ordner je Saison | `Saison {saison} vom %DD,%MM,%CCYY` (das Datum ist der **Beginn der Saison**) |
 | Dateiname je Kamera | `#{nr}.{saison}.{aufnahme}.Cam ID.{cam} %DD.%MM.%CCYY` |
 
-Platzhalter in geschweiften Klammern: `{partner}` Name, `{nr}` Nummer des Spielpartners, `{saison}` Saison, `{aufnahme}` Nummer der Aufnahme in der Saison, `{gesamt}` Nummer der Aufnahme insgesamt mit diesem Spielpartner (der Zähler **Aufnahmen gesamt** plus eins), `{cam}` Präfix der Kamera (bei Ctronics 4K Cam das Präfix, das man beim Hinzufügen der Kamera einträgt, hat eine Kamera keins, steht dort ihr Name, der Gerätename), `{cam_nr}` Nummer der Kamera beim Spielpartner (die beiden letzten nur im Dateinamen), `{ort}` Ort. Zahlen sind zweistellig (`03`). Dazu Datum und Zeit mit `%CCYY %MM %DD %hh %mm %ss`. Heißen zwei Dateien gleich, hängt die Integration `Cam NN` an.
+Platzhalter in geschweiften Klammern: `{partner}` Name, `{nr}` Nummer des Spielpartners, `{saison}` Saison, `{aufnahme}` Nummer der Aufnahme in der Saison (der Zähler **Aufnahmen in Saison** plus eins), `{gesamt}` Nummer der Aufnahme insgesamt mit diesem Spielpartner (der Zähler **Aufnahmen gesamt** plus eins), `{cam}` Präfix der Kamera (bei Ctronics 4K Cam das Präfix, das man beim Hinzufügen der Kamera einträgt, hat eine Kamera keins, steht dort ihr Name, der Gerätename), `{cam_nr}` Nummer der Kamera beim Spielpartner (die beiden letzten nur im Dateinamen), `{ort}` Ort. Zahlen sind zweistellig (`03`). Alle Kameras eines Starts teilen die Nummern `{aufnahme}` und `{gesamt}`. Beim nächsten Start gehen sie um die Zahl der Kameras des letzten Starts weiter, weil die Zähler je Kamera zählen (siehe *Saison*). Dazu Datum und Zeit mit `%CCYY %MM %DD %hh %mm %ss`. Heißen zwei Dateien gleich, hängt die Integration `Cam NN` an.
 
 ### Spielpartner
 
@@ -72,7 +72,7 @@ Die Vorlieben gibst du direkt beim Spielpartner ein, es braucht keine eigenen Ei
 |---|---|
 | Sensor (unter **Diagnose**) | die Vorliebe für sich, mit dem Namen der Vorliebe. Der Zustand nennt die Art (eigene Vorliebe oder Vorliebe zum Bearbeiten), bei den Vorlieben zum Bearbeiten zeigt das Attribut `active`, ob sie gerade „dabei“ ist |
 | Schalter **… dabei** (nur Vorlieben zum Bearbeiten) | schaltest du vor dem Spielen ein, was dabei sein soll. Der Schalter bleibt, wie er ist, bis du ihn änderst |
-| Sensor **… Zähler** (nur Vorlieben zum Bearbeiten) | bei wie vielen Aufnahmen die Vorliebe „dabei“ war. Beim Start einer Aufnahme zählt jede eingeschaltete Vorliebe +1 |
+| Sensor **… Zähler** (nur Vorlieben zum Bearbeiten) | bei wie vielen Aufnahmen die Vorliebe „dabei“ war. Beim Start einer Aufnahme zählt jede eingeschaltete Vorliebe +1, einmal je Start und nicht je Kamera |
 
 Fügst du beim Bearbeiten des Spielpartners eine Vorliebe hinzu, tauchen ihre Entities nach dem Speichern am Gerät auf, gestrichene verschwinden dort samt Entities. Der Zähler läuft unter dem Namen der Vorliebe weiter, solange er gleich bleibt. Die Listen stehen auch in den Attributen `nickname`, `likes` und `treats` des Status-Sensors, zum Beispiel für eigene Automationen.
 
@@ -153,7 +153,7 @@ Am Gerät **Spielpartner …**:
 | Sensoren **Aufnahmedauer in Saison / gesamt** (Stunden), **Längste Aufnahme in Saison** (Minuten), **Letzte Aufnahme** | Auswertung |
 | Sensor **Zielordner** | Ordner der laufenden oder nächsten Aufnahme, der volle Pfad steht im Attribut `path` |
 
-Die Zähler zählen eine Aufnahme, sobald die App sie gestartet hat.
+Die Zähler **Aufnahmen in Saison** und **Aufnahmen gesamt** zählen **je Kamera**, die beim Start aufnimmt, sobald die App die Aufnahme gestartet hat: Nimmt ein Ort mit 7 Kameras auf, steigen beide um 7, denn jedes Video ist eine Aufnahme. Eine Kamera, die beim Start fehlt oder schon woanders aufnimmt, zählt nicht. Die Aufnahmedauer und die Zähler der Vorlieben zählen dagegen je Start. Bereits gezählte Aufnahmen bleiben, wie sie sind, die neue Zählung gilt ab der nächsten Aufnahme (bei *Spielpartner bearbeiten* kannst du die Zähler anpassen).
 
 ## Dienste und Ereignisse
 
@@ -177,7 +177,7 @@ Ereignisse für eigene Automationen (zum Beispiel Benachrichtigungen):
 | `spiel_saison_season_started` | `partner`, `partner_id`, `season`, `start` |
 | `spiel_saison_season_ended` | `partner`, `nickname`, `partner_id`, `season`, `start`, `recordings`, `seconds` |
 
-Beim Start-Ereignis ist `cams` die Liste der Kamera-Entity-IDs, die aufnehmen, `session` der Name der Sitzung (zum Beispiel `Frank Saison 03 Aufnahme 07`) und `files` die Liste der Dateien, eine je Kamera: `[{"cam": "camera.fuchsauge", "name": "#02.03.07.Cam ID.#1 28.10.2026"}]`. `name` ist der Dateiname **ohne Endung**. Die App hängt je nach ihrer Einstellung `container` `.mp4` (Standard) oder `.mkv` an, nach einem Neustart der Aufnahme einer Kamera kommt ` Teil 2` dazu, und unzulässige Zeichen ersetzt die App durch `_`. Die Stream-Adressen stehen nicht im Ereignis, weil sie Zugangsdaten enthalten können. `preferences` ist die Liste der Namen der Vorlieben, bei denen der Schalter „dabei“ beim Start an ist (in der Reihenfolge der Vorlieben des Spielpartners, leer, wenn keine an ist), zum Beispiel `["Fisten", "XXL Spielzeug"]`.
+`recording` ist in beiden Ereignissen die Nummer der Aufnahme, die auch in den Dateinamen steht (`{aufnahme}`), alle Kameras des Starts teilen sie. `recordings` im Ereignis `spiel_saison_season_ended` und in der Antwort von `end_season` zählt je Kamera. Beim Start-Ereignis ist `cams` die Liste der Kamera-Entity-IDs, die aufnehmen, `session` der Name der Sitzung (zum Beispiel `Frank Saison 03 Aufnahme 07`) und `files` die Liste der Dateien, eine je Kamera: `[{"cam": "camera.fuchsauge", "name": "#02.03.07.Cam ID.#1 28.10.2026"}]`. `name` ist der Dateiname **ohne Endung**. Die App hängt je nach ihrer Einstellung `container` `.mp4` (Standard) oder `.mkv` an, nach einem Neustart der Aufnahme einer Kamera kommt ` Teil 2` dazu, und unzulässige Zeichen ersetzt die App durch `_`. Die Stream-Adressen stehen nicht im Ereignis, weil sie Zugangsdaten enthalten können. `preferences` ist die Liste der Namen der Vorlieben, bei denen der Schalter „dabei“ beim Start an ist (in der Reihenfolge der Vorlieben des Spielpartners, leer, wenn keine an ist), zum Beispiel `["Fisten", "XXL Spielzeug"]`.
 
 Beendet der Recorder eine Aufnahme von sich aus (zum Beispiel weil der Speicher voll ist), räumt die Integration auf, sendet das Stopp-Ereignis und legt unter *Einstellungen → System → Reparaturen* einen Hinweis an.
 

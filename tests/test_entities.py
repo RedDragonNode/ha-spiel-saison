@@ -91,7 +91,9 @@ async def test_the_switch_starts_and_stops_the_recording(hass: HomeAssistant, st
     assert hass.states.get(hub_entity(hass, entry, "binary_sensor", "recording")).state == STATE_ON
     assert hass.states.get(hub_entity(hass, entry, "sensor", "current_partner")).state == "Frank"
     assert hass.states.get(hub_entity(hass, entry, "sensor", "status")).state == "recording"
-    assert hass.states.get(partner_entity(hass, entry, FRANK, "sensor", "recordings_total")).state == "1"
+    assert (
+        hass.states.get(partner_entity(hass, entry, FRANK, "sensor", "recordings_total")).state == "2"
+    )  # zwei Kameras nehmen auf
     assert hass.states.get(partner_entity(hass, entry, FRANK, "sensor", "last_recording")).state != STATE_UNKNOWN
 
     await hass.services.async_call("switch", "turn_off", {"entity_id": switch}, blocking=True)
